@@ -8,7 +8,7 @@
 class ReminderB{
     int id=0;
     DateTime Upc = DateTime(0, 0, 0);
-    Box boxes[];
+    Box boxes[16];
     String boxes_{};
     byte boxes_size=0;
     boolean success=false;

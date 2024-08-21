@@ -48,7 +48,7 @@ String ReminderB::toString() const {
     time += "";
     String a = "{"
                     R"(  'time': ")" + time +"\""+
-                    R"(, 'boxes':)" + boxes+
+                    // R"(, 'boxes':)" + boxes+
                     R"(, 'success':)" + success +
                 "}";
     return a;
