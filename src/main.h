@@ -1,7 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
 #include <Arduino.h>
-#include <SDFS.h>
+// #include "FS.h"
+#include <FS.h>
 #include <ReminderA.h>
 #include <ReminderB.h>
 #include <Wire.h>
@@ -12,6 +13,8 @@ boolean initializeHardwareSerial();
 bool initializeSDFS();
 boolean initializeWiFi();
 bool initializeMDNS();
+bool initializeOLED();
+
 
 // boolean initializeRTC();
 void writeFile(const char &path, const char *message, const char *M);
@@ -20,8 +23,10 @@ String readLine(File file);
 String readLine(File file, byte line_no);
 String readLine(const String& path, byte line_no);
 void save_wifi_cred(const String& ssid_, const String& pass_);
+
+
 bool load_wifi_cred();
-void printAll(const String& path);
+void sd_print_all_files(const String& path);
 
 
 void setAccessPoint();

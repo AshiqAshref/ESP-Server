@@ -1,11 +1,13 @@
 #include "Communication_protocols.h"
 
 #include <NTPClient.h>
-#include <SoftwareSerial.h>
+// #include <SoftwareSerial.h>
 #include <CRC.h>
+#include <Output.h>
 
-extern SoftwareSerial hardwarePort;
+// extern SoftwareSerial Serial1;
 extern NTPClient timeClient;
+extern Output output;
 
 byte Communication_protocols::getProtocol(const byte b) {
     return b & PROTOCOL_FILTER;
@@ -34,8 +36,8 @@ unsigned long Communication_protocols::bytesToLong(const byte *byte_) {
 
 void Communication_protocols::handle_communications() const {
     timeClient.update();
-    if(hardwarePort.available()){
-        const byte response_header = hardwarePort.read();
+    if(Serial1.available()){
+        const byte response_header = Serial1.read();
         clear_receive_buffer();
         handle_header(response_header);
     }
@@ -67,11 +69,12 @@ void Communication_protocols::close_session(const byte function_id) {
 }
 void Communication_protocols::send_header(const byte function_id, const byte protocol_id) {
     clear_receive_buffer();
-    hardwarePort.write((function_id | protocol_id));
+    Serial1.write((function_id | protocol_id));
 }
 
 bool Communication_protocols::handleNTPcommand(const byte max_retries) const {
     if (timeClient.isTimeSet()) {
+        Output::print("handleNTP: ");
         COMM_PROTOCOL res_code = send_response_SYN_ACK(funct_id_getTime_);
         if(res_code==ACK){
             byte current_retries = 0;
@@ -101,7 +104,8 @@ COMM_PROTOCOL Communication_protocols::sendTime() const {
     if(timeClient.forceUpdate())
         l_res = timeClient.getEpochTime();
     Serial.print("time here: ");
-    Serial.println(l_res);
+    Output::println("time here: ");
+    Output::println(l_res);
     sendLong(l_res);
     return get_response(funct_id_getTime_);
 }
@@ -109,14 +113,14 @@ COMM_PROTOCOL Communication_protocols::sendTime() const {
 void Communication_protocols::sendLong(const unsigned long res_long) {
     const byte *res = longToByte(res_long);
     for(int i=0;i<4;i++)
-        hardwarePort.write(res[i]);
-    hardwarePort.write(calcCRC8(res,4));
+        Serial1.write(res[i]);
+    Serial1.write(calcCRC8(res,4));
     delete res;
 }
 
 bool Communication_protocols::wait_for_response() const {
     const unsigned long time_out_start = millis();
-    while(!hardwarePort.available())
+    while(!Serial1.available())
         if(millis()-time_out_start>=time_out_)
             return false;
     return true;
@@ -125,8 +129,8 @@ bool Communication_protocols::wait_for_response() const {
 COMM_PROTOCOL Communication_protocols::get_response(const byte function_id) const {
     if(!wait_for_response())
         return TIMEOUT;
-    while(hardwarePort.available()) {
-        const byte response_header = hardwarePort.read();
+    while(Serial1.available()) {
+        const byte response_header = Serial1.read();
         if(getFunction_id(response_header)==function_id) {
             if(getProtocol(response_header)==ACK) {
                 return ACK;
@@ -144,7 +148,7 @@ COMM_PROTOCOL Communication_protocols::get_response(const byte function_id) cons
 }
 
 void Communication_protocols::clear_receive_buffer() {
-    while(hardwarePort.available()>0) hardwarePort.read();
+    while(Serial1.available()>0) Serial1.read();
 }
 
 void Communication_protocols::printBin(const byte aByte) {

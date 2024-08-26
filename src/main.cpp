@@ -2,29 +2,30 @@
 #include <Arduino.h>
 
 #include <RTClib.h>
-#include <SoftwareSerial.h>
+#include<mdns.h>
+#include "SD.h"
 
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h>
-#include <ESPAsyncTCP.h>
+#include <HTTPClient.h>
+#include <WiFi.h>
+// #include <mDNS.h>
+#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <WiFiUdp.h>
 
 // #include <WiFiClient.h>
 #include <NTPClient.h>
-#include <SDFS.h>
 #include <ReminderA.h>
 #include <ReminderB.h>
 #include <ArduinoJson.h>
 #include <communication_protocols.h>
 #include <Error_Codes.h>
+#include <ESPmDNS.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Output.h>
 //SD MODULE:  D7 MOSI, D6 MISO, D5 CLK, D0 CS
 //RTC MODULE D1 SCL, D2 SDA
 //SOFT SERRIAL D4 TX, D8 RX
-
-#define SERIAL_TX 2 //d4
-#define SERIAL_RX 15 //d8
 
 auto reminderA = ReminderA();
 auto reminderB = ReminderB();
@@ -42,32 +43,39 @@ const String modeBdat = "/modeBdat.txt";
 const String PARAM_INPUT_1 = "ssid";
 const String PARAM_INPUT_2 = "pass";
 
-constexpr int SDFSchipSelect = 16; //D0
 boolean isModeA=false;
 
-SoftwareSerial hardwarePort(SERIAL_RX,SERIAL_TX);
+constexpr byte SCREEN_WIDTH =128; // OLED display width, in pixels
+constexpr byte SCREEN_HEIGHT =64; // OLED display height, in pixels
+
 AsyncWebServer server(80);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP,"time.windows.com",36000);
 auto comms = Communication_protocols();
 auto error_codes = Error_Codes();
+auto oled=Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT,&Wire,-1);
+auto output=Output();
 
 void setup() {
-	Serial.begin(9600);
+	Serial.begin(115200);
 	Serial.println("Started");
 	Serial.println("Line1");
+	while(!Serial.available()){}
+	if(!initializeOLED()) {error_codes.add_error(OLED_ERROR);}
 	if(!initializeSDFS()) {error_codes.add_error(SD_CARD_ERROR);}
 	if(!load_wifi_cred()) {error_codes.add_error(BAD_WIFI_CRED);}
 	if(!initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
 	timeClient.begin();
 	error_codes.print_all_errors();
+	error_codes.print_all_errors_OLED();
 	if(!initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
+
 }
 
 
 bool load_wifi_cred() {
-	if(!SDFS.exists(wifiConfigFile)) return false;
-	File file = SDFS.open(wifiConfigFile,"r");
+	if(!SD.exists(wifiConfigFile)) return false;
+	File file = SD.open(wifiConfigFile,"r");
 	JsonDocument doc;
 	bool success=true;
 
@@ -88,7 +96,7 @@ void save_wifi_cred(const String& ssid_, const String& pass_) {
 	JsonDocument doc;
 	doc[WIFI_SSID_JSON_KEY] = ssid_;
 	doc[WIFI_PASS_JSON_KEY] = pass_;
-	File file = SDFS.open(wifiConfigFile,"w+");
+	File file = SD.open(wifiConfigFile,"w+");
 	serializeJson(doc,file);
 	file.flush();
 	file.close();
@@ -96,36 +104,35 @@ void save_wifi_cred(const String& ssid_, const String& pass_) {
 }
 
 void loop() {
-	MDNS.update();
 	comms.handle_communications();
 
 	// JsonDocument doc;
 	// deserializeJson(doc, getReminders());
-	// serializeJson(doc, hardwarePort);
-	// hardwarePort.print(static_cast<String>(" i: ") + static_cast<String>(i++));
+	// serializeJson(doc, Serial1);
+	// Serial1.print(static_cast<String>(" i: ") + static_cast<String>(i++));
 	// delay(2000);
 }
 
 boolean initializeWiFi() {//......................INIT_WIFI
 	WiFi.mode(WIFI_STA);
 	WiFi.begin(WIFI_SSID.c_str(), WIFI_PASS.c_str());
-	Serial.println("Connecting to WiFi...");
+	Output::println("Connecting to WiFi...");
 
 	const unsigned long curMil = millis();
 	while(WiFi.status() != WL_CONNECTED) {
-		Serial.print('.');
+		Output::print('.');
 		if(millis()-curMil>=10000){
 			return false;
 		}
 		delay(250);
 	}
 
-	Serial.println();
-	Serial.print("Ip Addr: ");
-	Serial.println(WiFi.localIP());
-	Serial.print("HostName: ");
-	Serial.println(WiFi.hostname());
-	digitalWrite(LED_BUILTIN, 0);
+	Output::println();
+	Output::print("Ip Addr: ");
+	Output::println(WiFi.localIP().toString());
+	Output::print("HostName: ");
+	Output::println(WiFi.getHostname());
+	// digitalWrite(LED_BUILTIN, 0);
 	initializeMDNS();
 
 	return true;
@@ -134,10 +141,10 @@ boolean initializeWiFi() {//......................INIT_WIFI
 
 bool initializeMDNS() {
 	if(MDNS.begin("esp32")) {
-		Serial.println("MDNS SUccess ");
+		Output::println("MDNS SUccess ");
 		return true;
 	}
-	Serial.println("MDNS fail");
+	Output::println("MDNS fail");
 	return false;
 }
 
@@ -162,38 +169,41 @@ String get_formated_Time(const DateTime &curr_time, const byte mode) {
 		+beautifyTime(curr_time.second());
 }
 
+bool initializeOLED() {
+	return oled.begin(SSD1306_SWITCHCAPVCC, 0x3C) ;
+}
+
 
 boolean initializeHardwareSerial(){
-	// hardwarePort.begin(9600, SWSERIAL_8N1, SERIAL_RX, SERIAL_TX, false);
-	hardwarePort.begin(9600);
-	if (!hardwarePort) { // If the object did not initialize, then its configuration is invalid
-		Serial.println("Invalid SoftwareSerial pin configuration, check config");
+	Serial1.begin(9600,SERIAL_8N1,16,17);
+	if (!Serial1) { // If the object did not initialize, then its configuration is invalid
+		Output::println("Invalid SoftwareSerial pin configuration, check config");
 		return false;
 	}
 	return true;
 }
 
 void writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
-	Serial.print("Writing file: "+ path);
-	File file = SDFS.open(path, mode);
+	Output::print("Writing file: "+ path);
+	File file = SD.open(path, mode);
 	if(!file){
-		Serial.println("- failed to open file for writing");
+		Output::println("- failed to open file for writing");
 		// return;
 	}
 	if(file.print(message)){
-		Serial.println("- file written");
+		Output::println("- file written");
 	} else {
-		Serial.println("- write failed");
+		Output::println("- write failed");
 	}
 	file.close();
 }
 
 String readFile(const String& path){//....................READ_FILE_SD
-	Serial.println("Reading file: "+ String(path));
+	Output::println("Reading file: "+ String(path));
 
-	File file = SDFS.open(path,"r");
+	File file = SD.open(path,"r");
 	if(!file || file.isDirectory()){
-		Serial.println("- failed to open file for reading");
+		Output::println("- failed to open file for reading");
 		return "";
 	}
 
@@ -224,55 +234,62 @@ String readLine(File file, const byte line_no) {
 }
 
 String readLine(const String& path, const byte line_no) {
-	File file =  SDFS.open(path,"r");
+	File file =  SD.open(path,"r");
 	String line =readLine(file, line_no);
 	file.close();
 	return line;
 }
 
-void printAll(const String& path) {
-	File file = SDFS.open(path, "r");
-	Serial.println("--printBgn--");
+
+
+
+
+
+void sd_print_all_files(const String& path) {
+	File file = SD.open(path, "r");
+	Output::println("--printBgn--");
 	while(file.available())
-		Serial.print(static_cast<char>(file.read()));
+		Output::print(static_cast<char>(file.read()));
 	file.close();
-	Serial.println();
-	Serial.println("--printEnd--");
+	Output::println();
+	Output::println("--printEnd--");
 }
 
 void setAccessPoint(){//.....................SET_ACCESSPOINT
-	Serial.println("Setting AP");
+	Output::println("Setting AP");
 	WiFi.softAP("WIFI-MANAGER", nullptr);
 
 	const IPAddress IP = WiFi.softAPIP();
-	Serial.print("AP IP address: ");
-	Serial.println(IP);
+	Output::print("AP IP address: ");
+	Output::println(IP.toString());
 
 	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-			request->send(SDFS, "data/wifimanager.html",String(), false);
+			request->send(SD, "data/wifimanager.html",String(), false);
 	});
-	server.serveStatic("/", SDFS, "data/");
+	server.serveStatic("/", SD, "data/");
+	server.begin();
 
 	server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
 		const size_t params = request->params();
 		for(size_t i=0;i<params;i++){
-			if(const AsyncWebParameter* p = request->getParam(i); p->isPost()){
+			const AsyncWebParameter* p = request->getParam(i);
+			if(p->isPost()){
 				if (p->name() == PARAM_INPUT_1) {
 					WIFI_SSID = p->value().c_str();
-					Serial.print("SSID set to: ");
-					Serial.println(WIFI_SSID);
+					Output::print("SSID set to: ");
+					Output::println(WIFI_SSID);
 				}
 				if (p->name() == PARAM_INPUT_2) {
 					WIFI_PASS = p->value().c_str();
-					Serial.print("Password set to: ");
-					Serial.println(WIFI_PASS);
+					Output::print("Password set to: ");
+					Output::println(WIFI_PASS);
 				}
 			}
 		}
 		request->send(200, "text/plain", "Reconnecting WiFi");
 		if(initializeWiFi())server.end();
 	});
-	server.begin();
+
 }
 
 
@@ -296,10 +313,10 @@ ReminderA jsonToClass(String& dat){
 
 
 ReminderA checkUpcomming(const DateTime& currentTime){ //............................CHECK_UPCOMMING
-	File file=SDFS.open("dat.txt","r");
+	File file=SD.open("dat.txt","r");
 	auto result=ReminderA();
 	if(file){
-		Serial.println("File Opened");
+		Output::println("File Opened");
 		DateTime prev;
 		boolean startFlag=true;
 		auto prevReminder=ReminderA();
@@ -328,7 +345,7 @@ ReminderA checkUpcomming(const DateTime& currentTime){ //.......................
 			prevReminder=result;
 		}
 	}else{
-		Serial.println("File Open FAILED");
+		Output::println("File Open FAILED");
 	}
 	return result;
 }
@@ -346,10 +363,10 @@ ReminderB jsonToClassB(const String& dat) {
 
 
 ReminderB checkUpcommingB(const DateTime& currentTime){ //............................CHECK_UPCOMMING
-	File file=SDFS.open("modeBdat.txt","r");
+	File file=SD.open("modeBdat.txt","r");
 	auto result=ReminderB();
 	if(file){
-		Serial.println("File Opened");
+		Output::println("File Opened");
 		DateTime prev;
 		boolean startFlag=true;
 		auto prevReminder=ReminderB();
@@ -378,7 +395,7 @@ ReminderB checkUpcommingB(const DateTime& currentTime){ //......................
 			prevReminder=result;
 		}
 	}else{
-		Serial.println("File Open FAILED");
+		Output::println("File Open FAILED");
 	}
 	return result;
 }
@@ -390,13 +407,13 @@ String handle_index_modeB(const String &remoteIp){//.........................HAN
 
 	const String serverip=remoteIp+":8080/ESP_Manager/modeB";
 
-	Serial.print("HTTP begin...\n");
+	Output::print("HTTP begin...\n");
 	http.begin(client,  "http://"+ serverip+ "?espGetAll"); //HTTP
 	http.addHeader("Content-Type", "text/plain");
 
-	Serial.print("HTTP POST...\n");
-
-	if (const int httpCode = http.POST("totalItems"); httpCode > 0) {
+	Output::print("HTTP POST...\n");
+	const int httpCode = http.POST("totalItems");
+	if ( httpCode > 0) {
 		Serial.printf("HTTP POST... code: %d\n", httpCode);
 
 		if (httpCode == HTTP_CODE_OK) {
@@ -415,7 +432,7 @@ String handle_index_modeB(const String &remoteIp){//.........................HAN
 					aFlag=false;
 					temp+=payload.charAt(i);
 					temp+="\n";
-					Serial.println(temp);
+					Output::println(temp);
 
 					if(startFlag){
 						const auto w="w";
@@ -429,7 +446,7 @@ String handle_index_modeB(const String &remoteIp){//.........................HAN
 					delay(100);
 				}
 			}
-			Serial.println(payload);
+			Output::println(payload);
 		}
 	}else{
 		Serial.printf("HTTP POST... failed, error: %s\n", HTTPClient::errorToString(httpCode).c_str());
@@ -445,15 +462,14 @@ String handle_index(const String &remoteIp){//.........................HANDLE_IN
 	HTTPClient http;
 	const String serverip=remoteIp+":8080/ESP_Manager/data";
 
-	Serial.print("HTTP begin...\n");
+	Output::print("HTTP begin...\n");
 	http.begin(client, "http://"+ serverip+ "?ESPGetAll"); //HTTP
 	http.addHeader("Content-Type", "text/plain");
 
-	Serial.print("HTTP POST...\n");
-
-	if (const int httpCode = http.POST("totalItems"); httpCode > 0) {
+	Output::print("HTTP POST...\n");
+	const int httpCode = http.POST("totalItems");
+	if ( httpCode > 0) {
 		Serial.printf("HTTP POST... code: %d\n", httpCode);
-
 		if (httpCode == HTTP_CODE_OK) {
 			const String& payload = http.getString();
 			String temp;
@@ -470,7 +486,7 @@ String handle_index(const String &remoteIp){//.........................HANDLE_IN
 					aFlag=false;
 					temp+=payload.charAt(i);
 					temp+="\n";
-					Serial.println(temp);
+					Output::println(temp);
 
 					if(startFlag){
 						auto const w="w";
@@ -484,7 +500,7 @@ String handle_index(const String &remoteIp){//.........................HANDLE_IN
 					delay(100);
 				}
 			}
-			Serial.println(payload);
+			Output::println(payload);
 		}
 	}else{
 		Serial.printf("HTTP POST... failed, error: %s\n", HTTPClient::errorToString(httpCode).c_str());
@@ -495,11 +511,11 @@ String handle_index(const String &remoteIp){//.........................HANDLE_IN
 }
 
 
+
+
+
 bool initializeSDFS() {
-	SDFSConfig cfg; //SD card Module
-	cfg.setCSPin(SDFSchipSelect);
-	SDFS.setConfig(cfg);
-	return SDFS.begin();
+	return SD.begin();
 }
 
 
@@ -587,9 +603,9 @@ String getReminders() {
 //   pass = readFile(passPath);
 //
 //   if(initializeWiFi()){
-//     Serial.println("We Have Connection!");
+//     Output::println("We Have Connection!");
 //   }else{
-//     Serial.println("Couldnt Connect to the Network");
+//     Output::println("Couldnt Connect to the Network");
 //     setAccessPoint();
 //   }
 //
@@ -616,21 +632,21 @@ String getReminders() {
 // void loop() {//.......................................LOOP
 //   if (WiFiClient client = ser.accept()){
 //     const String remoteIp=client.remoteIP().toString();
-//     Serial.print("RemoteIp..: ");
-//     Serial.println(remoteIp);
-//     Serial.print("RemotePort: ");
-//     Serial.println(client.remotePort());
+//     Output::print("RemoteIp..: ");
+//     Output::println(remoteIp);
+//     Output::print("RemotePort: ");
+//     Output::println(client.remotePort());
 //
 //     while (client.connected()){
 //       if (client.available()){
-//         Serial.print("Got SomeThing: ");
+//         Output::print("Got SomeThing: ");
 //         String line = client.readString();
-//         Serial.println(line);
-//         Serial.println("-----");
-//         Serial.println();
-//         client.println("HTTP/1.1 200 OK");
-//         client.println();
-//         client.println("DONE");
+//         Output::println(line);
+//         Output::println("-----");
+//         Output::println();
+//         client.Output::println("HTTP/1.1 200 OK");
+//         client.Output::println();
+//         client.Output::println("DONE");
 //         client.stop();
 //         if(isModeA)
 //           handle_index(remoteIp);
@@ -644,67 +660,67 @@ String getReminders() {
 //     currentMillis=millis();
 //     const auto rtc=DateTime(0,0,0,DS1307_RTC.now().hour(), DS1307_RTC.now().minute(), DS1307_RTC.now().second());
 //
-//     // Serial.print("Time Now: ");
-//     // Serial.print(String(rtc.hour())+" : "+String(rtc.minute())+" : "+String(rtc.second()));
+//     // Output::print("Time Now: ");
+//     // Output::print(String(rtc.hour())+" : "+String(rtc.minute())+" : "+String(rtc.second()));
 //
 //     if(isModeA){
-//       // Serial.print(" Upcomming--> ");
-//       // Serial.print(reminder.Upc.hour());
-//       // Serial.print(":");
-//       // Serial.print(reminder.Upc.minute());
-//       // Serial.print(" isModeA: ");
-//       // Serial.println(isModeA);
+//       // Output::print(" Upcomming--> ");
+//       // Output::print(reminder.Upc.hour());
+//       // Output::print(":");
+//       // Output::print(reminder.Upc.minute());
+//       // Output::print(" isModeA: ");
+//       // Output::println(isModeA);
 //
 //       if(DateTime(0,0,0,rtc.hour(),rtc.minute())==DateTime(0,0,0,reminderA.get_date_time().hour(),reminderA.get_date_time().minute())){
-//         Serial.println("<<ALARMMMMMM>>");
+//         Output::println("<<ALARMMMMMM>>");
 //         if(alarmFlag){
 //           alarmFlag=false;
 //           String t="{ALM0:"+reminderA.toString()+"}";
 //
 //           for(int i=0;i<10;i++){
-//             hardwarePort.write('.');
+//             Serial1.write('.');
 //             delay(50);
 //           }
-//           hardwarePort.write(t.c_str());
+//           Serial1.write(t.c_str());
 //           reminderA=checkUpcomming(DateTime(0,0,0,rtc.hour(),rtc.minute(),(rtc.second()+1)));
 //           t="{UPC0:"+reminderA.toString()+"}";
 //
 //           for(int i=0;i<2;i++){
-//             hardwarePort.write('.');
+//             Serial1.write('.');
 //             delay(50);
 //           }
-//           hardwarePort.write(t.c_str());
+//           Serial1.write(t.c_str());
 //         }else{
 //           alarmFlag=true;
 //         }
 //       }
 //     }else if(!isModeA){
-//       // Serial.print(" Upcomming--> ");
-//       // Serial.print(reminderB.Upc.hour());
-//       // Serial.print(":");
-//       // Serial.print(reminderB.Upc.minute());
-//       // Serial.print(" isModeB: ");
-//       // Serial.println(isModeA);
+//       // Output::print(" Upcomming--> ");
+//       // Output::print(reminderB.Upc.hour());
+//       // Output::print(":");
+//       // Output::print(reminderB.Upc.minute());
+//       // Output::print(" isModeB: ");
+//       // Output::println(isModeA);
 //
 //       if(DateTime(0,0,0,rtc.hour(),rtc.minute())==DateTime(0,0,0,reminderB.get_date_time().hour(),reminderB.get_date_time().minute())){
-//         Serial.println("<<ALARMMMMMM>> ModeB");
+//         Output::println("<<ALARMMMMMM>> ModeB");
 //         if(alarmFlag){
 //           alarmFlag=false;
 //           String t="{ALM1:"+reminderB.toString()+"}";
 //
 //           for(int i=0;i<10;i++){
-//             hardwarePort.write('.');
+//             Serial1.write('.');
 //             delay(50);
 //           }
-//           hardwarePort.write(t.c_str());
+//           Serial1.write(t.c_str());
 //           reminderB=checkUpcommingB(DateTime(0,0,0,rtc.hour(),rtc.minute(),(rtc.second()+1)));
 //           t="{UPC1:"+reminderB.toString()+"}";
 //
 //           for(int i=0;i<2;i++){
-//             hardwarePort.write('.');
+//             Serial1.write('.');
 //             delay(50);
 //           }
-//           hardwarePort.write(t.c_str());
+//           Serial1.write(t.c_str());
 //         }else{
 //           alarmFlag=true;
 //         }
