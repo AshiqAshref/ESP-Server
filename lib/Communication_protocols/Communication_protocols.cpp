@@ -1,13 +1,13 @@
 #include "Communication_protocols.h"
 
 #include <NTPClient.h>
-// #include <SoftwareSerial.h>
-#include <CRC.h>
+#include <Error_Codes.h>
 #include <Output.h>
+#include <CRC.h>
 
-// extern SoftwareSerial Serial1;
 extern NTPClient timeClient;
-extern Output output;
+extern Error_Codes error_codes;
+// extern Output output;
 
 byte Communication_protocols::getProtocol(const byte b) {
     return b & PROTOCOL_FILTER;
@@ -35,8 +35,9 @@ unsigned long Communication_protocols::bytesToLong(const byte *byte_) {
 }
 
 void Communication_protocols::handle_communications() const {
-    timeClient.update();
-    if(Serial1.available()){
+    if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)<0) {
+        timeClient.update();
+    }if(Serial1.available()){
         const byte response_header = Serial1.read();
         clear_receive_buffer();
         handle_header(response_header);
@@ -51,7 +52,6 @@ void Communication_protocols::handle_header(const byte response_header) const {
         }
     }
 }
-
 void Communication_protocols::send_request_SYN(const byte function_id) {
     send_header(function_id , SYN);
 }
@@ -74,7 +74,6 @@ void Communication_protocols::send_header(const byte function_id, const byte pro
 
 bool Communication_protocols::handleNTPcommand(const byte max_retries) const {
     if (timeClient.isTimeSet()) {
-        Output::print("handleNTP: ");
         COMM_PROTOCOL res_code = send_response_SYN_ACK(funct_id_getTime_);
         if(res_code==ACK){
             byte current_retries = 0;
@@ -92,22 +91,23 @@ bool Communication_protocols::handleNTPcommand(const byte max_retries) const {
     return false;
 }
 
-
-
 COMM_PROTOCOL Communication_protocols::send_response_SYN_ACK(const byte function_id) const {
     send_header(function_id , SYN_ACK);
     return get_response(function_id);
 }
 
 COMM_PROTOCOL Communication_protocols::sendTime() const {
-    unsigned long l_res = timeClient.getEpochTime();
+    unsigned long unix_time = timeClient.getEpochTime();
     if(timeClient.forceUpdate())
-        l_res = timeClient.getEpochTime();
-    Serial.print("time here: ");
-    Output::println("time here: ");
-    Output::println(l_res);
-    sendLong(l_res);
-    return get_response(funct_id_getTime_);
+        unix_time = timeClient.getEpochTime();
+    sendLong(unix_time);
+    const COMM_PROTOCOL res =get_response(funct_id_getTime_);
+    if(res == SUCCESS) {
+        Output::clear_line(7);
+        Output::print("syn: ",7);
+        Output::println(Output::get_formated_Time(unix_time));
+    }
+    return res;
 }
 
 void Communication_protocols::sendLong(const unsigned long res_long) {
@@ -151,15 +151,3 @@ void Communication_protocols::clear_receive_buffer() {
     while(Serial1.available()>0) Serial1.read();
 }
 
-void Communication_protocols::printBin(const byte aByte) {
-    Serial.print('(');
-    for (int8_t aBit = 7; aBit >= 0; aBit--) {
-        Serial.print(bitRead(aByte, aBit) ? '1' : '0');
-        if(aBit==4) Serial.print(' ');
-    }
-    Serial.print(')');
-}
-void Communication_protocols::printlnBin(const byte aByte) {
-    printBin(aByte);
-    Serial.println();
-}

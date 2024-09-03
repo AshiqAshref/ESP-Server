@@ -14,8 +14,6 @@ enum COMM_PROTOCOL:byte {
     PROTOCOL_FILTER = 0b11110000
 };
 
-
-
 class Communication_protocols {
     const unsigned long time_out_ = 10000;
     const unsigned long NTP_refresh_rate_= 3600000;
@@ -28,8 +26,6 @@ class Communication_protocols {
     void handle_header(byte response_header) const;
     [[nodiscard]] bool handleNTPcommand(byte max_retries = 20) const;
 
-    static void printBin(byte aByte);
-    static void printlnBin(byte aByte);
     static void clear_receive_buffer();
     static void send_header(byte function_id, byte protocol_id);
     [[nodiscard]] bool wait_for_response() const;
@@ -47,8 +43,5 @@ public:
     static unsigned long bytesToLong(const byte *byte_);
     static byte getProtocol(byte b);
     [[nodiscard]] byte getFunction_id(byte response_header) const;
-
-
-
 };
 #endif //COMMUNICATION_PROTOCOLS_H

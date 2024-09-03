@@ -1,17 +1,14 @@
 #include "main.h"
+
 #include <Arduino.h>
-
 #include <RTClib.h>
-#include<mdns.h>
 #include "SD.h"
-
+// #include "FS.h"
 #include <HTTPClient.h>
 #include <WiFi.h>
-// #include <mDNS.h>
-#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <AsyncTCP.h>
 #include <WiFiUdp.h>
-
 // #include <WiFiClient.h>
 #include <NTPClient.h>
 #include <ReminderA.h>
@@ -42,39 +39,177 @@ const String modeBdat = "/modeBdat.txt";
 
 const String PARAM_INPUT_1 = "ssid";
 const String PARAM_INPUT_2 = "pass";
+bool tryNewPass=false;
 
 boolean isModeA=false;
 
 constexpr byte SCREEN_WIDTH =128; // OLED display width, in pixels
 constexpr byte SCREEN_HEIGHT =64; // OLED display height, in pixels
 
-AsyncWebServer server(80);
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP,"time.windows.com",36000);
-auto comms = Communication_protocols();
-auto error_codes = Error_Codes();
+auto server = AsyncWebServer(81);
+auto ntpUDP=WiFiUDP();
+auto timeClient = NTPClient(ntpUDP,"time.windows.com",36000);
 auto oled=Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT,&Wire,-1);
+auto error_codes = Error_Codes();
+auto comms = Communication_protocols();
 auto output=Output();
 
 void setup() {
 	Serial.begin(115200);
 	Serial.println("Started");
 	Serial.println("Line1");
-	while(!Serial.available()){}
 	if(!initializeOLED()) {error_codes.add_error(OLED_ERROR);}
 	if(!initializeSDFS()) {error_codes.add_error(SD_CARD_ERROR);}
 	if(!load_wifi_cred()) {error_codes.add_error(BAD_WIFI_CRED);}
 	if(!initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
-	timeClient.begin();
-	error_codes.print_all_errors();
-	error_codes.print_all_errors_OLED();
+	if(!initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
+	if(!initializeNTP())  {error_codes.add_error(NTP_ERROR);}
 	if(!initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
-
+	Output::print_all_errors();
 }
 
 
+
+void loop() {
+	comms.handle_communications();
+	resolve_errors();
+	updateUiComponents();
+
+	// JsonDocument doc;
+	// deserializeJson(doc, getReminders());
+	// serializeJson(doc, Serial1);
+	// Serial1.print(static_cast<String>(" i: ") + static_cast<String>(i++));
+	// delay(2000);
+}
+
+unsigned int prev_RSSI_update=0;
+constexpr unsigned int RSSI_update_interval=3000;
+void updateUiComponents(){
+	if(millis()-prev_RSSI_update>RSSI_update_interval){
+		prev_RSSI_update=millis();
+		if(WiFiClass::status() == WL_CONNECTED) {
+			output.update_Wifi_RSSI_ICO(WiFi.RSSI());
+		}else {
+			output.draw_Wifi_icon(4);
+			error_codes.add_error(WIFI_CONN_ERROR);
+		}
+	}
+}
+
+unsigned long previous_reconnect_millis=0;
+constexpr unsigned int reconnect_interval=60000;
+bool resolve_WIFI_CONN_ERROR() {
+	if(WiFiClass::status() == WL_CONNECTED) {
+		error_codes.remove_error(WIFI_CONN_ERROR);
+		Output::print("IP: ");
+		Output::println(WiFi.localIP().toString(), false);
+		Output::print("ID: ");
+		Output::println(WiFiClass::getHostname(), false);
+		if(tryNewPass) {
+			save_wifi_cred(WIFI_SSID,WIFI_PASS);
+			server.end();
+			output.draw_AP_active_icon(false);
+			tryNewPass=false;
+		}
+		return true;
+	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)>-1) {
+		return load_wifi_cred();
+	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)>-1) {
+		return false;
+	}if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
+		return false;
+	}if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)>-1) {
+		if ((WiFiClass::status() != WL_CONNECTED) && (millis() -  previous_reconnect_millis>=reconnect_interval)) {
+			WiFi.disconnect();
+			WiFi.reconnect();
+			WiFi.RSSI();
+			previous_reconnect_millis = millis();
+		}
+	}
+	return false;
+}
+bool resolve_SD_CARD_ERROR() {
+	output.draw_SD_eror_icon();
+	SD.end();
+	if(initializeSDFS()) {
+		error_codes.remove_error(SD_CARD_ERROR);
+		output.draw_SD_eror_icon(false);
+		return true;
+	}
+	return false;
+}
+bool resolve_MDNS_ERROR() {
+	MDNS.end();
+	return initializeMDNS();
+}
+bool resolve_BAD_WIFI_CRED() {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR))
+		return false;
+	return load_wifi_cred();
+}
+
+void resolve_errors() {
+	if(error_codes.total_errors()>0) {
+		for(byte i=0;i<error_codes.total_errors();i++) {
+			if(resolve_error(error_codes.get_error(i))) {
+				i=0;
+				Output::print_all_errors();
+			}
+		}
+	}
+}
+bool resolve_error(const INTERNAL_ERROR_CODE error_code) {
+	if(error_code==WIFI_CONN_ERROR) {
+		output.draw_Wifi_icon(4);
+		if(resolve_WIFI_CONN_ERROR()) {
+			prev_RSSI_update = 0;
+			initializeNTP();
+			initializeMDNS();
+			return true;
+		}
+		return false;
+	}if(error_code==NTP_ERROR) {
+		return initializeNTP();
+	}if(error_code==MDNS_ERROR) {
+		return initializeMDNS();
+	}if(error_code==SD_CARD_ERROR) {
+		return resolve_SD_CARD_ERROR();
+	}if(error_code==BAD_WIFI_CRED) {
+		return resolve_BAD_WIFI_CRED();
+	}if(error_code==SOFT_SERIAL_ERROR) {
+		return initializeHardwareSerial();
+	}
+	return false;
+}
+bool initializeOLED() {
+	if(oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+		oled.cp437();
+		oled.clearDisplay();
+		oled.setTextSize(1);
+		oled.setTextColor(WHITE);
+		error_codes.remove_error(OLED_ERROR);
+		return true;
+	}
+	error_codes.add_error(OLED_ERROR);
+	return false;
+}
+bool initializeSDFS() {
+	if(SD.begin()) {
+		error_codes.remove_error(SD_CARD_ERROR);
+		return true;
+	}
+	error_codes.add_error(SD_CARD_ERROR);
+	output.draw_SD_eror_icon();
+	return false;
+}
 bool load_wifi_cred() {
-	if(!SD.exists(wifiConfigFile)) return false;
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
+		error_codes.add_error(BAD_WIFI_CRED);
+		return false;
+	}if(!SD.exists(wifiConfigFile)) {
+		error_codes.add_error(BAD_WIFI_CRED);
+		return false;
+	}
 	File file = SD.open(wifiConfigFile,"r");
 	JsonDocument doc;
 	bool success=true;
@@ -90,105 +225,81 @@ bool load_wifi_cred() {
 	}
 	file.close();
 	doc.clear();
+	if(success) error_codes.remove_error(BAD_WIFI_CRED);
+	else error_codes.add_error(BAD_WIFI_CRED);
 	return success;
 }
-void save_wifi_cred(const String& ssid_, const String& pass_) {
-	JsonDocument doc;
-	doc[WIFI_SSID_JSON_KEY] = ssid_;
-	doc[WIFI_PASS_JSON_KEY] = pass_;
-	File file = SD.open(wifiConfigFile,"w+");
-	serializeJson(doc,file);
-	file.flush();
-	file.close();
-	doc.clear();
-}
-
-void loop() {
-	comms.handle_communications();
-
-	// JsonDocument doc;
-	// deserializeJson(doc, getReminders());
-	// serializeJson(doc, Serial1);
-	// Serial1.print(static_cast<String>(" i: ") + static_cast<String>(i++));
-	// delay(2000);
-}
-
-boolean initializeWiFi() {//......................INIT_WIFI
-	WiFi.mode(WIFI_STA);
+bool initializeWiFi() {//......................INIT_WIFI
+	WiFiClass::mode(WIFI_STA);
 	WiFi.begin(WIFI_SSID.c_str(), WIFI_PASS.c_str());
+	WiFi.disconnect();
+	WiFi.reconnect();
+	
 	Output::println("Connecting to WiFi...");
-
 	const unsigned long curMil = millis();
-	while(WiFi.status() != WL_CONNECTED) {
-		Output::print('.');
+	byte a = 0;
+	while(WiFiClass::status() != WL_CONNECTED) {
+		Output::print('.',false);
 		if(millis()-curMil>=10000){
+			Output::println();
+			error_codes.add_error(WIFI_CONN_ERROR);
 			return false;
 		}
-		delay(250);
+		output.animateConnection(a);
+		delay(500);
 	}
-
-	Output::println();
-	Output::print("Ip Addr: ");
-	Output::println(WiFi.localIP().toString());
-	Output::print("HostName: ");
-	Output::println(WiFi.getHostname());
-	// digitalWrite(LED_BUILTIN, 0);
-	initializeMDNS();
-
+	
+	Output::print("IP: ");
+	Output::println(WiFi.localIP().toString(),false);
+	Output::print("ID: ");
+	Output::println(WiFiClass::getHostname(),false);
+	error_codes.remove_error(WIFI_CONN_ERROR);
+	if(tryNewPass) {
+		save_wifi_cred(WIFI_SSID,WIFI_PASS);
+		server.end();
+		output.draw_AP_active_icon(false);
+		tryNewPass=false;
+	}
 	return true;
 }
-
-
 bool initializeMDNS() {
-	if(MDNS.begin("esp32")) {
-		Output::println("MDNS SUccess ");
-		return true;
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)<0) {
+		if(MDNS.begin("esp32")) {
+			error_codes.remove_error(MDNS_ERROR);
+			return true;
+		}
 	}
-	Output::println("MDNS fail");
+	error_codes.add_error(MDNS_ERROR);
 	return false;
 }
-
-
-String beautifyTime(const uint8_t h_m_s) {
-	if(h_m_s<10)
-		return '0'+static_cast<String>(h_m_s);
-	return static_cast<String>(h_m_s);
+bool initializeNTP() {
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)<0){
+		timeClient.begin();
+		timeClient.forceUpdate();
+		if(timeClient.isTimeSet()) {
+			error_codes.remove_error(NTP_ERROR);
+			return true;
+		}
+	}
+	error_codes.add_error(NTP_ERROR);
+	return false;
 }
-
-
-String get_formated_Time(const DateTime &curr_time, const byte mode) {
-	if(mode == 12)
-		return
-			beautifyTime(curr_time.twelveHour())+":"
-			+beautifyTime(curr_time.minute())+":"
-			+beautifyTime(curr_time.second())+" "
-			+(curr_time.isPM()? "p": " ");
-	return
-		beautifyTime(curr_time.hour())+":"
-		+beautifyTime(curr_time.minute()) +":"
-		+beautifyTime(curr_time.second());
-}
-
-bool initializeOLED() {
-	return oled.begin(SSD1306_SWITCHCAPVCC, 0x3C) ;
-}
-
-
-boolean initializeHardwareSerial(){
-	Serial1.begin(9600,SERIAL_8N1,16,17);
-	if (!Serial1) { // If the object did not initialize, then its configuration is invalid
-		Output::println("Invalid SoftwareSerial pin configuration, check config");
+bool initializeHardwareSerial(){
+	Serial1.begin(115200,SERIAL_8N1,16,17);
+	if (!Serial1) {
+		error_codes.add_error(SOFT_SERIAL_ERROR);
 		return false;
 	}
+	error_codes.remove_error(SOFT_SERIAL_ERROR);
 	return true;
 }
+
 
 void writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
 	Output::print("Writing file: "+ path);
 	File file = SD.open(path, mode);
 	if(!file){
 		Output::println("- failed to open file for writing");
-		// return;
 	}
 	if(file.print(message)){
 		Output::println("- file written");
@@ -197,7 +308,6 @@ void writeFile(const String &path, const char *message, const char *mode){//....
 	}
 	file.close();
 }
-
 String readFile(const String& path){//....................READ_FILE_SD
 	Output::println("Reading file: "+ String(path));
 
@@ -215,14 +325,12 @@ String readFile(const String& path){//....................READ_FILE_SD
 	file.close();
 	return fileContent;
 }
-
 String readLine(File file) {
 	if(file.available())
 		return file.readStringUntil(10);
 	return "";
 
 }
-
 String readLine(File file, const byte line_no) {
 	file.seek(0,SeekSet);
 	for(byte i=0;i<line_no;i++)
@@ -232,42 +340,43 @@ String readLine(File file, const byte line_no) {
 		return file.readStringUntil(10);
 	return "";
 }
-
 String readLine(const String& path, const byte line_no) {
 	File file =  SD.open(path,"r");
 	String line =readLine(file, line_no);
 	file.close();
 	return line;
 }
-
-
-
-
-
-
 void sd_print_all_files(const String& path) {
 	File file = SD.open(path, "r");
 	Output::println("--printBgn--");
 	while(file.available())
-		Output::print(static_cast<char>(file.read()));
+		Output::print(static_cast<char>(file.read()),false);
 	file.close();
-	Output::println();
 	Output::println("--printEnd--");
+}
+void save_wifi_cred(const String& ssid_, const String& pass_) {
+	JsonDocument doc;
+	doc[WIFI_SSID_JSON_KEY] = ssid_;
+	doc[WIFI_PASS_JSON_KEY] = pass_;
+	File file = SD.open(wifiConfigFile,"w+");
+	serializeJson(doc,file);
+	file.flush();
+	file.close();
+	doc.clear();
 }
 
 void setAccessPoint(){//.....................SET_ACCESSPOINT
 	Output::println("Setting AP");
 	WiFi.softAP("WIFI-MANAGER", nullptr);
-
 	const IPAddress IP = WiFi.softAPIP();
-	Output::print("AP IP address: ");
-	Output::println(IP.toString());
+	Output::print("AP_IP: ");
+	Output::println(IP.toString(),false);
+	output.draw_AP_active_icon();
 
 	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-			request->send(SD, "data/wifimanager.html",String(), false);
+			request->send(SD, "/data/wifimanager.html","text/html");
 	});
-	server.serveStatic("/", SD, "data/");
-	server.begin();
+	server.serveStatic("/", SD, "/data/");
 
 	server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
 		const size_t params = request->params();
@@ -276,24 +385,22 @@ void setAccessPoint(){//.....................SET_ACCESSPOINT
 			if(p->isPost()){
 				if (p->name() == PARAM_INPUT_1) {
 					WIFI_SSID = p->value().c_str();
-					Output::print("SSID set to: ");
-					Output::println(WIFI_SSID);
-				}
-				if (p->name() == PARAM_INPUT_2) {
+					Output::print("NEW_SSID: ");
+					Output::println(WIFI_SSID, false);
+					tryNewPass=true;
+				}if (p->name() == PARAM_INPUT_2) {
 					WIFI_PASS = p->value().c_str();
-					Output::print("Password set to: ");
-					Output::println(WIFI_PASS);
+					Output::print("NEW_PASS: ");
+					Output::println(WIFI_PASS, false);
+					tryNewPass=true;
 				}
 			}
 		}
 		request->send(200, "text/plain", "Reconnecting WiFi");
-		if(initializeWiFi())server.end();
+		initializeWiFi();
 	});
-
+	server.begin();
 }
-
-
-
 
 ReminderA jsonToClass(String& dat){
 	unsigned int id=dat.substring((dat.indexOf(':')+1),dat.indexOf(',')).toInt();
@@ -311,13 +418,12 @@ ReminderA jsonToClass(String& dat){
 	return {DateTime(0,0,0,H,M,0), boxNo, id, false};
 }
 
-
 ReminderA checkUpcomming(const DateTime& currentTime){ //............................CHECK_UPCOMMING
 	File file=SD.open("dat.txt","r");
 	auto result=ReminderA();
 	if(file){
 		Output::println("File Opened");
-		DateTime prev;
+		// DateTime prev;
 		boolean startFlag=true;
 		auto prevReminder=ReminderA();
 
@@ -350,7 +456,6 @@ ReminderA checkUpcomming(const DateTime& currentTime){ //.......................
 	return result;
 }
 
-
 ReminderB jsonToClassB(const String& dat) {
 	const byte H = dat.substring((dat.indexOf('=') + 1), dat.indexOf(':')).toInt();
 	const byte M = dat.substring((dat.indexOf(':') + 1), dat.indexOf('\"')).toInt();
@@ -361,13 +466,12 @@ ReminderB jsonToClassB(const String& dat) {
 	return {DateTime(0, 0, 0, H, M, 0), boxesString, false};
 }
 
-
 ReminderB checkUpcommingB(const DateTime& currentTime){ //............................CHECK_UPCOMMING
 	File file=SD.open("modeBdat.txt","r");
 	auto result=ReminderB();
 	if(file){
 		Output::println("File Opened");
-		DateTime prev;
+		// DateTime prev;
 		boolean startFlag=true;
 		auto prevReminder=ReminderB();
 
@@ -399,7 +503,6 @@ ReminderB checkUpcommingB(const DateTime& currentTime){ //......................
 	}
 	return result;
 }
-
 
 String handle_index_modeB(const String &remoteIp){//.........................HANDLE_INDEX
 	WiFiClient client;
@@ -456,7 +559,6 @@ String handle_index_modeB(const String &remoteIp){//.........................HAN
 	return "OK";
 }
 
-
 String handle_index(const String &remoteIp){//.........................HANDLE_INDEX
 	WiFiClient client;
 	HTTPClient http;
@@ -508,14 +610,6 @@ String handle_index(const String &remoteIp){//.........................HANDLE_IN
 
 	http.end();
 	return "OK";
-}
-
-
-
-
-
-bool initializeSDFS() {
-	return SD.begin();
 }
 
 
@@ -581,15 +675,6 @@ String getReminders() {
 }
 
 
-
-// boolean initializeRTC(){
-//   DS1307_RTC.begin(); //RTC Module
-//   // // DS1307_RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
-//   DS1307_RTC.adjust(DateTime(0,0,0,0,16,45));
-//   return true;
-// }
-
-
 // void setup() {  //.......................................................................SETUP
 //   Serial.begin(9600);
 //   initializeHardwareSerial();
@@ -625,7 +710,6 @@ String getReminders() {
 //   server.begin();
 //   ser.begin();
 // }
-
 
 // unsigned long currentMillis=0;
 // boolean alarmFlag=true;

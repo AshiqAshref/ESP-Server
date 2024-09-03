@@ -9,11 +9,13 @@ enum INTERNAL_ERROR_CODE:byte {
     SOFT_SERIAL_ERROR =    0b00000100,
     SETTING_AP_FAIL   =    0b00000101,
     OLED_ERROR        =    0b00000110,
+    MDNS_ERROR        =    0b00000111,
+    NTP_ERROR         =    0b00001000,
 };
 
 class Error_Codes {
     byte total_active_errors_ = 0;
-    INTERNAL_ERROR_CODE error_codes[5]{};
+    INTERNAL_ERROR_CODE error_codes[8]{};
 public:
     Error_Codes()=default;
     void add_error(INTERNAL_ERROR_CODE error_code);
@@ -23,11 +25,10 @@ public:
     [[nodiscard]] int check_if_error_exist(INTERNAL_ERROR_CODE error_code) const;
     [[nodiscard]] byte total_errors() const {return total_active_errors_;}
 
-    static String get_error(INTERNAL_ERROR_CODE error_code);
-    void print_all_errors() const;
-    void print_all_errors_OLED() const;
-    static void print_error(INTERNAL_ERROR_CODE error_code);
-    static void println_error(INTERNAL_ERROR_CODE error_code);
+    static String get_error_as_string(INTERNAL_ERROR_CODE error_code);
+
+    // void print_all_errors_OLED() const;
+
 
 };
 
