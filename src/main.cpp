@@ -30,8 +30,10 @@ auto reminderB = ReminderB();
 const String wifiConfigFile = "/WifiConfig.dat";
 const String WIFI_SSID_JSON_KEY = "wifi_SSID";
 const String WIFI_PASS_JSON_KEY = "wifi_PASS";
-String WIFI_SSID="Guest";
-String WIFI_PASS="vFM95xht";
+// String WIFI_SSID="Guest";
+// String WIFI_PASS="vFM95xht";
+String WIFI_SSID="";
+String WIFI_PASS="";
 
 const String dataPath = "/dat.txt";
 const String modePath = "/mode.txt";
@@ -46,7 +48,7 @@ boolean isModeA=false;
 constexpr byte SCREEN_WIDTH =128; // OLED display width, in pixels
 constexpr byte SCREEN_HEIGHT =64; // OLED display height, in pixels
 
-auto server = AsyncWebServer(81);
+auto server = AsyncWebServer(80);
 auto ntpUDP=WiFiUDP();
 auto timeClient = NTPClient(ntpUDP,"time.windows.com",36000);
 auto oled=Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT,&Wire,-1);
@@ -66,9 +68,8 @@ void setup() {
 	if(!initializeNTP())  {error_codes.add_error(NTP_ERROR);}
 	if(!initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
 	Output::print_all_errors();
+
 }
-
-
 
 void loop() {
 	comms.handle_communications();
@@ -107,7 +108,6 @@ bool resolve_WIFI_CONN_ERROR() {
 		Output::println(WiFiClass::getHostname(), false);
 		if(tryNewPass) {
 			save_wifi_cred(WIFI_SSID,WIFI_PASS);
-			server.end();
 			output.draw_AP_active_icon(false);
 			tryNewPass=false;
 		}
@@ -122,7 +122,6 @@ bool resolve_WIFI_CONN_ERROR() {
 		if ((WiFiClass::status() != WL_CONNECTED) && (millis() -  previous_reconnect_millis>=reconnect_interval)) {
 			WiFi.disconnect();
 			WiFi.reconnect();
-			WiFi.RSSI();
 			previous_reconnect_millis = millis();
 		}
 	}
@@ -187,6 +186,7 @@ bool initializeOLED() {
 		oled.clearDisplay();
 		oled.setTextSize(1);
 		oled.setTextColor(WHITE);
+		Output::println("Start");
 		error_codes.remove_error(OLED_ERROR);
 		return true;
 	}
@@ -201,33 +201,6 @@ bool initializeSDFS() {
 	error_codes.add_error(SD_CARD_ERROR);
 	output.draw_SD_eror_icon();
 	return false;
-}
-bool load_wifi_cred() {
-	if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
-		error_codes.add_error(BAD_WIFI_CRED);
-		return false;
-	}if(!SD.exists(wifiConfigFile)) {
-		error_codes.add_error(BAD_WIFI_CRED);
-		return false;
-	}
-	File file = SD.open(wifiConfigFile,"r");
-	JsonDocument doc;
-	bool success=true;
-
-	deserializeJson(doc,file);
-	if (!doc.containsKey(WIFI_SSID_JSON_KEY) || !doc.containsKey(WIFI_PASS_JSON_KEY)) {
-		success = false;
-	}else if(doc[WIFI_SSID_JSON_KEY].as<String>().length()<1 || doc[WIFI_PASS_JSON_KEY].as<String>().length()<8){
-		success = false;
-	}else{
-		WIFI_SSID = doc[WIFI_SSID_JSON_KEY].as<String>();
-		WIFI_PASS = doc[WIFI_PASS_JSON_KEY].as<String>();
-	}
-	file.close();
-	doc.clear();
-	if(success) error_codes.remove_error(BAD_WIFI_CRED);
-	else error_codes.add_error(BAD_WIFI_CRED);
-	return success;
 }
 bool initializeWiFi() {//......................INIT_WIFI
 	WiFiClass::mode(WIFI_STA);
@@ -364,6 +337,34 @@ void save_wifi_cred(const String& ssid_, const String& pass_) {
 	file.close();
 	doc.clear();
 }
+bool load_wifi_cred() {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
+		error_codes.add_error(BAD_WIFI_CRED);
+		return false;
+	}if(!SD.exists(wifiConfigFile)) {
+		Output::println("ConfigFileNotFound");
+		error_codes.add_error(BAD_WIFI_CRED);
+		return false;
+	}
+	File file = SD.open(wifiConfigFile,"r");
+	JsonDocument doc;
+	bool success=true;
+
+	deserializeJson(doc,file);
+	if (!doc.containsKey(WIFI_SSID_JSON_KEY) || !doc.containsKey(WIFI_PASS_JSON_KEY)) {
+		success = false;
+	}else if(doc[WIFI_SSID_JSON_KEY].as<String>().length()<1 || doc[WIFI_PASS_JSON_KEY].as<String>().length()<8){
+		success = false;
+	}else{
+		WIFI_SSID = doc[WIFI_SSID_JSON_KEY].as<String>();
+		WIFI_PASS = doc[WIFI_PASS_JSON_KEY].as<String>();
+	}
+	file.close();
+	doc.clear();
+	if(success) error_codes.remove_error(BAD_WIFI_CRED);
+	else error_codes.add_error(BAD_WIFI_CRED);
+	return success;
+}
 
 void setAccessPoint(){//.....................SET_ACCESSPOINT
 	Output::println("Setting AP");
@@ -384,12 +385,12 @@ void setAccessPoint(){//.....................SET_ACCESSPOINT
 			const AsyncWebParameter* p = request->getParam(i);
 			if(p->isPost()){
 				if (p->name() == PARAM_INPUT_1) {
-					WIFI_SSID = p->value().c_str();
+					WIFI_SSID = p->value();
 					Output::print("NEW_SSID: ");
 					Output::println(WIFI_SSID, false);
 					tryNewPass=true;
 				}if (p->name() == PARAM_INPUT_2) {
-					WIFI_PASS = p->value().c_str();
+					WIFI_PASS = p->value();
 					Output::print("NEW_PASS: ");
 					Output::println(WIFI_PASS, false);
 					tryNewPass=true;
@@ -397,6 +398,7 @@ void setAccessPoint(){//.....................SET_ACCESSPOINT
 			}
 		}
 		request->send(200, "text/plain", "Reconnecting WiFi");
+		server.end();
 		initializeWiFi();
 	});
 	server.begin();

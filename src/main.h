@@ -11,6 +11,7 @@
 
 bool initializeHardwareSerial();
 bool initializeSDFS();
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels);
 bool initializeWiFi();
 bool initializeMDNS();
 bool initializeNTP();

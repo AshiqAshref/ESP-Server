@@ -173,10 +173,10 @@ public:
   static void OLED_println(int value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0) ;
 
   static void OLED_print(const String &value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0) ;
-  static void OLED_println(const String &value="", bool clear_line_ = true, int16_t y = -1, int16_t x = 0) ;
+  static void OLED_println(const String &value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0) ;
   static void print(const String &value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0);
-  static void println(const String &value="", bool clear_line_ = true, int16_t y = -1, int16_t x = 0);
-
+  static void println(const String &value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0);
+  static void println();
   static void OLED_print(unsigned char value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0) ;
   static void OLED_println(unsigned char value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0) ;
   static void print(unsigned char value, bool clear_line_ = true, int16_t y = -1, int16_t x = 0);
@@ -204,7 +204,7 @@ public:
 
   static String beautifyTime(uint8_t h_m_s);
   static String get_formated_Time(unsigned long unix_time, byte mode = 12);
-
+  static String get_error_as_string(INTERNAL_ERROR_CODE error_code);
   static void print_all_errors();
   static void print_error(INTERNAL_ERROR_CODE error_code);
   static void println_error(INTERNAL_ERROR_CODE error_code);

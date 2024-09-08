@@ -103,8 +103,7 @@ COMM_PROTOCOL Communication_protocols::sendTime() const {
     sendLong(unix_time);
     const COMM_PROTOCOL res =get_response(funct_id_getTime_);
     if(res == SUCCESS) {
-        Output::clear_line(7);
-        Output::print("syn: ",7);
+        Output::print("syn: ");
         Output::println(Output::get_formated_Time(unix_time));
     }
     return res;

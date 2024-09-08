@@ -25,7 +25,7 @@ public:
     [[nodiscard]] int check_if_error_exist(INTERNAL_ERROR_CODE error_code) const;
     [[nodiscard]] byte total_errors() const {return total_active_errors_;}
 
-    static String get_error_as_string(INTERNAL_ERROR_CODE error_code);
+    // static String get_error_as_string(INTERNAL_ERROR_CODE error_code);
 
     // void print_all_errors_OLED() const;
 

@@ -177,12 +177,16 @@ void Output::OLED_println(const String &value, const bool clear_line_, const int
     }
 }
 void Output::print(const String &value, const bool clear_line_, const int16_t y , const int16_t x) {
-    Serial.print(value);
     OLED_print(value, clear_line_, y, x);
+    Serial.print(value);
 }
 void Output::println(const String &value, const bool clear_line_, const int16_t y , const int16_t x ) {
-    Serial.println(value);
     OLED_println(value, clear_line_, y, x);
+    Serial.println(value);
+}
+void Output::println() {
+    OLED_println("", false);
+    Serial.println("");
 }
 
 void Output::OLED_print(const int value, const bool clear_line_, const int16_t y , const int16_t x) {
@@ -273,9 +277,28 @@ int16_t Output::clear_line(const int16_t y) {
 void Output::clear_display() {
     oled.clearDisplay();
 }
+String Output::get_error_as_string(const INTERNAL_ERROR_CODE error_code) {
+    if(error_code==BAD_WIFI_CRED)
+        return "BAD_WIFI_CRED";
+    if(error_code==WIFI_CONN_ERROR)
+        return "WIFI_CONN_ERROR";
+    if (error_code == SD_CARD_ERROR)
+        return "SD_CARD_ERROR";
+    if(error_code == SOFT_SERIAL_ERROR)
+        return "SOFT_SERIAL_ERROR";
+    if(error_code == SETTING_AP_FAIL)
+        return "SETTING_AP_FAIL";
+    if(error_code == OLED_ERROR)
+        return "OLED_ERROR";
+    if(error_code == MDNS_ERROR)
+        return "MDNS_ERROR";
+    if(error_code == NTP_ERROR)
+        return "NTP_ERROR";
+    return "INVALID ERROR CODDE";
+}
 
 void Output::print_error(const INTERNAL_ERROR_CODE error_code) {
-    print(Error_Codes::get_error_as_string(error_code));
+    print(get_error_as_string(error_code));
 }
 void Output::println_error(const INTERNAL_ERROR_CODE error_code) {
     print_error(error_code);
@@ -283,7 +306,6 @@ void Output::println_error(const INTERNAL_ERROR_CODE error_code) {
 }
 void Output::print_all_errors() {
     if(error_codes.check_if_error_exist(OLED_ERROR)<0){
-        set_line(0);
         if(error_codes.total_errors()!=0) {
             println("Active_Errors: {");
             for(short i=0;i<error_codes.total_errors();i++) {
