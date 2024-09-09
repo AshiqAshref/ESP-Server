@@ -109,6 +109,38 @@ COMM_PROTOCOL Communication_protocols::sendTime() const {
     return res;
 }
 
+bool Communication_protocols::getTimeFromBuffer() {
+    byte tim[4]{};
+    for(int i=0;i<4;i++) {
+        tim[i]=Serial1.read();
+        printBin(tim[i]);
+        Serial.print(" ");
+    }
+    Serial.println();
+
+    const byte crc_val = Serial1.read();
+    if(calcCRC8(tim, 4)==crc_val) {
+        Serial.print("Time : ");
+        Serial.println(bytesToLong(tim));
+        rtc.adjust(DateTime(bytesToLong(tim)));
+        return true;
+    }
+    return false;
+}
+
+void Communication_protocols::printBin(const byte aByte) {
+    Serial.print('(');
+    for (int8_t aBit = 7; aBit >= 0; aBit--) {
+        Serial.print(bitRead(aByte, aBit) ? '1' : '0');
+        if(aBit==4) Serial.print(' ');
+    }
+    Serial.print(')');
+}
+void Communication_protocols::printlnBin(const byte aByte) {
+    printBin(aByte);
+    Serial.println();
+}
+
 void Communication_protocols::sendLong(const unsigned long res_long) {
     const byte *res = longToByte(res_long);
     for(int i=0;i<4;i++)

@@ -35,6 +35,7 @@ class Communication_protocols {
     static void send_status_SUCCESS(byte function_id);
     static void send_status_TIMEOUT(byte function_id);
     [[nodiscard]] COMM_PROTOCOL send_response_SYN_ACK(byte function_id) const;
+    bool getTimeFromBuffer();
 
 public:
     Communication_protocols()=default;
@@ -43,5 +44,7 @@ public:
     static unsigned long bytesToLong(const byte *byte_);
     static byte getProtocol(byte b);
     [[nodiscard]] byte getFunction_id(byte response_header) const;
+    static void printBin(byte aByte);
+    static void printlnBin(byte aByte);
 };
 #endif //COMMUNICATION_PROTOCOLS_H
