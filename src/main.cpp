@@ -1,9 +1,7 @@
 #include "main.h"
-
 #include <Arduino.h>
 #include <RTClib.h>
-#include "SD.h"
-// #include "FS.h"
+#include <SD.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -20,16 +18,13 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Output.h>
-//SD MODULE:  D7 MOSI, D6 MISO, D5 CLK, D0 CS
-//RTC MODULE D1 SCL, D2 SDA
-//SOFT SERRIAL D4 TX, D8 RX
+#include <Memmory.h>
 
 auto reminderA = ReminderA();
 auto reminderB = ReminderB();
 
 const String wifiConfigFile = "/WifiConfig.dat";
-const String WIFI_SSID_JSON_KEY = "wifi_SSID";
-const String WIFI_PASS_JSON_KEY = "wifi_PASS";
+
 // String WIFI_SSID="Guest";
 // String WIFI_PASS="vFM95xht";
 String WIFI_SSID="";
@@ -55,14 +50,15 @@ auto oled=Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT,&Wire,-1);
 auto error_codes = Error_Codes();
 auto comms = Communication_protocols();
 auto output=Output();
+auto memmory = Memmory(wifiConfigFile);
 
 void setup() {
 	Serial.begin(115200);
 	Serial.println("Started");
 	Serial.println("Line1");
 	if(!initializeOLED()) {error_codes.add_error(OLED_ERROR);}
-	if(!initializeSDFS()) {error_codes.add_error(SD_CARD_ERROR);}
-	if(!load_wifi_cred()) {error_codes.add_error(BAD_WIFI_CRED);}
+	if(!Memmory::initializeSDFS()) {error_codes.add_error(SD_CARD_ERROR);}
+	if(!memmory.load_wifi_cred(WIFI_SSID,WIFI_PASS)) {error_codes.add_error(BAD_WIFI_CRED);}
 	if(!initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
 	if(!initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
 	if(!initializeNTP())  {error_codes.add_error(NTP_ERROR);}
@@ -107,13 +103,13 @@ bool resolve_WIFI_CONN_ERROR() {
 		Output::print("ID: ");
 		Output::println(WiFiClass::getHostname(), false);
 		if(tryNewPass) {
-			save_wifi_cred(WIFI_SSID,WIFI_PASS);
+			memmory.save_wifi_cred(WIFI_SSID,WIFI_PASS);
 			output.draw_AP_active_icon(false);
 			tryNewPass=false;
 		}
 		return true;
 	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)>-1) {
-		return load_wifi_cred();
+		return memmory.load_wifi_cred(WIFI_SSID,WIFI_PASS);
 	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)>-1) {
 		return false;
 	}if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
@@ -130,7 +126,7 @@ bool resolve_WIFI_CONN_ERROR() {
 bool resolve_SD_CARD_ERROR() {
 	output.draw_SD_eror_icon();
 	SD.end();
-	if(initializeSDFS()) {
+	if(Memmory::initializeSDFS()) {
 		error_codes.remove_error(SD_CARD_ERROR);
 		output.draw_SD_eror_icon(false);
 		return true;
@@ -144,7 +140,7 @@ bool resolve_MDNS_ERROR() {
 bool resolve_BAD_WIFI_CRED() {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR))
 		return false;
-	return load_wifi_cred();
+	return memmory.load_wifi_cred(WIFI_SSID,WIFI_PASS);
 }
 
 void resolve_errors() {
@@ -193,15 +189,7 @@ bool initializeOLED() {
 	error_codes.add_error(OLED_ERROR);
 	return false;
 }
-bool initializeSDFS() {
-	if(SD.begin()) {
-		error_codes.remove_error(SD_CARD_ERROR);
-		return true;
-	}
-	error_codes.add_error(SD_CARD_ERROR);
-	output.draw_SD_eror_icon();
-	return false;
-}
+
 bool initializeWiFi() {//......................INIT_WIFI
 	WiFiClass::mode(WIFI_STA);
 	WiFi.begin(WIFI_SSID.c_str(), WIFI_PASS.c_str());
@@ -228,7 +216,7 @@ bool initializeWiFi() {//......................INIT_WIFI
 	Output::println(WiFiClass::getHostname(),false);
 	error_codes.remove_error(WIFI_CONN_ERROR);
 	if(tryNewPass) {
-		save_wifi_cred(WIFI_SSID,WIFI_PASS);
+		memmory.save_wifi_cred(WIFI_SSID,WIFI_PASS);
 		server.end();
 		output.draw_AP_active_icon(false);
 		tryNewPass=false;
@@ -268,103 +256,6 @@ bool initializeHardwareSerial(){
 }
 
 
-void writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
-	Output::print("Writing file: "+ path);
-	File file = SD.open(path, mode);
-	if(!file){
-		Output::println("- failed to open file for writing");
-	}
-	if(file.print(message)){
-		Output::println("- file written");
-	} else {
-		Output::println("- write failed");
-	}
-	file.close();
-}
-String readFile(const String& path){//....................READ_FILE_SD
-	Output::println("Reading file: "+ String(path));
-
-	File file = SD.open(path,"r");
-	if(!file || file.isDirectory()){
-		Output::println("- failed to open file for reading");
-		return "";
-	}
-
-	String fileContent;
-	while(file.available()){
-		fileContent = file.readStringUntil('\n');
-		break;
-	}
-	file.close();
-	return fileContent;
-}
-String readLine(File file) {
-	if(file.available())
-		return file.readStringUntil(10);
-	return "";
-
-}
-String readLine(File file, const byte line_no) {
-	file.seek(0,SeekSet);
-	for(byte i=0;i<line_no;i++)
-		if(file.available())
-			file.readStringUntil(10);
-	if(file.available())
-		return file.readStringUntil(10);
-	return "";
-}
-String readLine(const String& path, const byte line_no) {
-	File file =  SD.open(path,"r");
-	String line =readLine(file, line_no);
-	file.close();
-	return line;
-}
-void sd_print_all_files(const String& path) {
-	File file = SD.open(path, "r");
-	Output::println("--printBgn--");
-	while(file.available())
-		Output::print(static_cast<char>(file.read()),false);
-	file.close();
-	Output::println("--printEnd--");
-}
-void save_wifi_cred(const String& ssid_, const String& pass_) {
-	JsonDocument doc;
-	doc[WIFI_SSID_JSON_KEY] = ssid_;
-	doc[WIFI_PASS_JSON_KEY] = pass_;
-	File file = SD.open(wifiConfigFile,"w+");
-	serializeJson(doc,file);
-	file.flush();
-	file.close();
-	doc.clear();
-}
-bool load_wifi_cred() {
-	if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
-		error_codes.add_error(BAD_WIFI_CRED);
-		return false;
-	}if(!SD.exists(wifiConfigFile)) {
-		Output::println("ConfigFileNotFound");
-		error_codes.add_error(BAD_WIFI_CRED);
-		return false;
-	}
-	File file = SD.open(wifiConfigFile,"r");
-	JsonDocument doc;
-	bool success=true;
-
-	deserializeJson(doc,file);
-	if (!doc.containsKey(WIFI_SSID_JSON_KEY) || !doc.containsKey(WIFI_PASS_JSON_KEY)) {
-		success = false;
-	}else if(doc[WIFI_SSID_JSON_KEY].as<String>().length()<1 || doc[WIFI_PASS_JSON_KEY].as<String>().length()<8){
-		success = false;
-	}else{
-		WIFI_SSID = doc[WIFI_SSID_JSON_KEY].as<String>();
-		WIFI_PASS = doc[WIFI_PASS_JSON_KEY].as<String>();
-	}
-	file.close();
-	doc.clear();
-	if(success) error_codes.remove_error(BAD_WIFI_CRED);
-	else error_codes.add_error(BAD_WIFI_CRED);
-	return success;
-}
 
 void setAccessPoint(){//.....................SET_ACCESSPOINT
 	Output::println("Setting AP");
@@ -541,11 +432,11 @@ String handle_index_modeB(const String &remoteIp){//.........................HAN
 
 					if(startFlag){
 						const auto w="w";
-						writeFile(modeBdat, temp.c_str(), w);
+						Memmory::writeFile(modeBdat, temp.c_str(), w);
 						startFlag=false;
 					}else{
 						const auto a="a";
-						writeFile(modeBdat, temp.c_str(), a);
+						Memmory::writeFile(modeBdat, temp.c_str(), a);
 					}
 					temp="";
 					delay(100);
@@ -594,11 +485,11 @@ String handle_index(const String &remoteIp){//.........................HANDLE_IN
 
 					if(startFlag){
 						auto const w="w";
-						writeFile(dataPath, temp.c_str(), w);
+						Memmory::writeFile(dataPath, temp.c_str(), w);
 						startFlag=false;
 					}else{
 						auto const a="a";
-						writeFile(dataPath, temp.c_str(), a);
+						Memmory::writeFile(dataPath, temp.c_str(), a);
 					}
 					temp="";
 					delay(100);
@@ -676,6 +567,65 @@ String getReminders() {
 	return json;
 }
 
+// void addRemindes() {
+//     String json =R"(
+//     [
+//         {
+//             "timeId": 24,
+//             "time": "00:10",
+//             "medicines": [
+//                 {
+//                     "medBox": 9,
+//                     "dosage": 1,
+//                     "success": false
+//                 }
+//             ]
+//         },
+//         {
+//             "timeId": 6,
+//             "time": "00:20",
+//             "medicines": [
+//                 {
+//                     "medBox": 14,
+//                     "dosage": 2,
+//                     "success": false
+//                 },
+//                 {
+//                     "medBox": 9,
+//                     "dosage": 3,
+//                     "success": false
+//                 }
+//             ]
+//         },
+//         {
+//             "timeId": 4,
+//             "time": "10:05",
+//             "medicines": [
+//                 {
+//                     "medBox": 7,
+//                     "dosage": 3,
+//                     "success": false
+//                 }
+//             ]
+//         },
+//         {
+//             "timeId": 3,
+//             "time": "20:45",
+//             "medicines": [
+//                 {
+//                     "medBox": 7,
+//                     "dosage": 2,
+//                     "success": false
+//                 },
+//                 {
+//                     "medBox": 14,
+//                     "dosage": 4,
+//                     "success": false
+//                 }
+//             ]
+//         }
+//     ])";
+// }
 
 // void setup() {  //.......................................................................SETUP
 //   Serial.begin(9600);

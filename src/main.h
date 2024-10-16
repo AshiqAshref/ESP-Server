@@ -1,7 +1,6 @@
 #ifndef MAIN_H
 #define MAIN_H
 #include <Arduino.h>
-// #include "FS.h"
 #include <Error_Codes.h>
 #include <FS.h>
 #include <ReminderA.h>
@@ -10,8 +9,6 @@
 #include <SPI.h>
 
 bool initializeHardwareSerial();
-bool initializeSDFS();
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels);
 bool initializeWiFi();
 bool initializeMDNS();
 bool initializeNTP();
@@ -20,16 +17,8 @@ void updateUiComponents();
 
 
 // boolean initializeRTC();
-void writeFile(const char &path, const char *message, const char *M);
-String readFile(const String& path);
-String readLine(File file);
-String readLine(File file, byte line_no);
-String readLine(const String& path, byte line_no);
-void save_wifi_cred(const String& ssid_, const String& pass_);
 
 
-bool load_wifi_cred();
-void sd_print_all_files(const String& path);
 void resolve_errors();
 
 bool resolve_error(INTERNAL_ERROR_CODE error_code);
@@ -49,3 +38,6 @@ String handle_index(const String &remoteIp);
 String getReminders();
 
 #endif //MAIN_H
+//SD MODULE:  D7 MOSI, D6 MISO, D5 CLK, D0 CS
+//RTC MODULE D1 SCL, D2 SDA
+//SOFT SERRIAL D4 TX, D8 RX
