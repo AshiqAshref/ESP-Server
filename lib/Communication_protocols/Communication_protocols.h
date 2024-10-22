@@ -15,56 +15,56 @@ enum COMM_PROTOCOL:byte {
     PROTOCOL_FILTER = 0b11110000
 };
 
-constexpr byte funct_id_getTime_       = 0b00001000;
-constexpr byte funct_id_get_reminderB_ = 0b00001100;
+
+enum Commands:byte {
+    GET_TIME = 0b00001000,
+    GET_REMINDER_B =  0b00001100,
+    ACTIVATE_AP = 0b00000100,
+    DEACTIVATE_AP =     0b00000010,
+    COMMAND_FILTER = 0b00001111
+};
+
+
 constexpr byte function_id_filter_     = 0b00001111;
 constexpr unsigned long time_out_ = 10000;
 
 class Communication_protocols {
+protected:
     const unsigned long NTP_refresh_rate_= 3600000;
 
-    [[nodiscard]] static COMM_PROTOCOL sendTime(const byte function_id) ;
-    [[nodiscard]] static COMM_PROTOCOL sendJsonDocument(const JsonDocument &doc, byte function_id, byte max_retries=20);
 
-    static JsonDocument receive_jsonDocument(byte function_id, byte max_retries=20);
+    [[nodiscard]] static COMM_PROTOCOL sendJsonDocument(const JsonDocument &doc, Commands command, byte max_retries=20);
+    static JsonDocument receive_jsonDocument(Commands command, byte max_retries=20);
+    static COMM_PROTOCOL sendLong(unsigned long res_long, Commands command);
+    static unsigned long getLongFromBuffer(Commands command);
 
-    [[nodiscard]] static COMM_PROTOCOL get_response(byte function_id, bool clear_buffer = true);
-    static void close_session(byte function_id);
-    static void handle_header(byte response_header) ;
-    [[nodiscard]] static bool NTP_request_handler(const byte function_id, byte max_retries = 20);
-    [[nodiscard]] static bool get_reminder_b_request_handler(byte function_id, byte max_retries = 20);
+    static IPAddress receive_IP(Commands command, byte max_retries);
 
-    static void clear_receive_buffer();
-    static void send_header(byte function_id, byte protocol_id);
+    static COMM_PROTOCOL send_IP(const IPAddress &IP, Commands command);
+
+    [[nodiscard]] static byte getCommand(byte response_header);
+    static byte getProtocol(byte b);
+    static void send_header(byte command, byte protocol_id);
+    static void send_request_RETRY(Commands command);
+    static void send_request_SYN(Commands command);
+    static void send_status_SUCCESS(Commands command);
+    static void send_status_UNKW_ERROR(Commands command);
+    static void send_status_TIMEOUT(Commands command);
+    static void send_response_ACK(Commands command);
+    [[nodiscard]] static COMM_PROTOCOL send_response_SYN_ACK(Commands command, bool clear_buffer = true) ;
+    static void close_session(Commands command);
+    [[nodiscard]] static COMM_PROTOCOL get_response(Commands command, bool clear_buffer = true);
+
+    static bool wait_for_response(Commands command);
     [[nodiscard]] static bool wait_for_response() ;
-
-    static bool wait_for_response(byte function_id);
-
-    static COMM_PROTOCOL sendLong(unsigned long res_long, const byte function_id);
-    static void send_request_RETRY(byte function_id);
-    static void send_request_SYN(byte function_id);
-    static void send_status_SUCCESS(byte function_id);
-    static void send_status_UNKW_ERROR(byte function_id);
-    static void send_status_TIMEOUT(byte function_id);
-    static void send_response_ACK(byte function_id);
-    [[nodiscard]] static COMM_PROTOCOL send_response_SYN_ACK(byte function_id, bool clear_buffer = true) ;
-
-    static unsigned long getLongFromBuffer(const byte function_id);
+    static void clear_receive_buffer();
 
     static JsonDocument simplify_Json(JsonDocument doc);
     static JsonDocument unsimplify_Json(JsonDocument doc);
 
 public:
     Communication_protocols()=default;
-    static void handle_communications() ;
     static byte *longToByte(unsigned long long_);//delete val after use
     static unsigned long bytesToLong(const byte *byte_);
-    static byte getProtocol(byte b);
-    [[nodiscard]] static byte getFunction_id(byte response_header);
-    static void printBin(byte aByte);
-    static void printlnBin(byte aByte);
-
-
-
 };
 #endif //COMMUNICATION_PROTOCOLS_H

@@ -3,11 +3,192 @@
 #include <Error_Codes.h>
 #include <RTClib.h>
 
+
+
 extern Adafruit_SSD1306 oled;
 extern Error_Codes error_codes;
 
+
+constexpr unsigned char icoWifi_Full [32]  = {
+  0b00000111, 0b11100000,//     ######
+  0b00011111, 0b11111000,//   ##########
+  0b00111100, 0b00111100,//  ####    ####
+  0b01110000, 0b00001110,// ###        ###
+  0b11100011, 0b11000111,//###   ####   ###
+  0b11001111, 0b11110011,//##  ########  ##
+  0b00011110, 0b01111000,//   ####  ####
+  0b00111000, 0b00011100,//  ###      ###
+  0b00110001, 0b10001100,//  ##   ##   ##
+  0b00000111, 0b11100000,//     ######
+  0b00001110, 0b01110000,//    ###  ###
+  0b00001100, 0b00110000,//    ##    ##
+  0b00000000, 0b00000000,//    #      #
+  0b00000001, 0b10000000,//       ##
+  0b00000001, 0b10000000,//       ##
+  0b00000000, 0b00000000,
+};
+
+constexpr unsigned char icoWifi3 [32] = {
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000011, 0b11000000,//      ####
+  0b00001111, 0b11110000,//    ########
+  0b00011110, 0b01111000,//   ####  ####
+  0b00111000, 0b00011100,//  ###      ###
+  0b00110001, 0b10001100,//  ##   ##   ##
+  0b00000111, 0b11100000,//     ######
+  0b00001110, 0b01110000,//    ###  ###
+  0b00001100, 0b00110000,//    ##    ##
+  0b00000000, 0b00000000,//    #      #
+  0b00000001, 0b10000000,//       ##
+  0b00000001, 0b10000000,//       ##
+  0b00000000, 0b00000000,//
+};
+
+constexpr unsigned char icoWifi2 [32]  = {
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000001, 0b10000000,//       ##
+  0b00000111, 0b11100000,//     ######
+  0b00001110, 0b01110000,//    ###  ###
+  0b00001100, 0b00110000,//    ##    ##
+  0b00000000, 0b00000000,//    #      #
+  0b00000001, 0b10000000,//       ##
+  0b00000001, 0b10000000,//       ##
+  0b00000000, 0b00000000,//
+};
+
+constexpr unsigned char icoWifi1 [32]  = {
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000000, 0b00000000,
+  0b00000001, 0b10000000,//       ##
+  0b00000001, 0b10000000,//       ##
+  0b00000000, 0b00000000,
+};
+
+constexpr unsigned char WifiCross_RightDiag [32] = {
+  0b00011111, 0b11111000,//    ##########
+  0b00111000, 0b00011100,//   ###      ###
+  0b01100000, 0b00000110,//  ##          ##
+  0b11000000, 0b00001111,// ##          ####
+  0b11000000, 0b00011011,// ##         ## ##
+  0b10000000, 0b00110001,// #         ##   #
+  0b10000000, 0b01100001,// #        ##    #
+  0b10000000, 0b11000001,// #       ##     #
+  0b10000001, 0b10000001,// #      ##      #
+  0b10000011, 0b00000001,// #     ##       #
+  0b10000110, 0b00000001,// #    ##        #
+  0b11001100, 0b00000011,// ##  ##        ##
+  0b11011000, 0b00000011,// ## ##         ##
+  0b01110000, 0b00000110,//  ###         ##
+  0b00111000, 0b00011100,//   ###      ###
+  0b00011111, 0b11111000,//    ##########
+};
+
+constexpr unsigned char sd_ico[32] ={
+    0b00001111, 0b11111110, //    ###########
+    0b00011001, 0b00100110, //   ##  #  #  ##
+    0b00011001, 0b00100110, //   ##  #  #  ##
+    0b00011001, 0b00100110, //   ##  #  #  ##
+    0b00011001, 0b00100110, //   ##  #  #  ##
+    0b00011111, 0b11111110, //   ############
+    0b00111110, 0b00111110, //  #####   #####
+    0b01111110, 0b00111110, // ######   #####
+    0b01111110, 0b00111110, // ######   #####
+    0b01111110, 0b00111110, // ######   #####
+    0b01111110, 0b00111110, // ######   #####
+    0b01111111, 0b11111110, // ##############
+    0b01111111, 0b11111110, // ##############
+    0b01111110, 0b00111110, // ######   #####
+    0b01111110, 0b00111110, // ######   #####
+    0b01111111, 0b11111110, // ##############
+    };
+
+constexpr unsigned char ap_ico[32] = {
+    0b00100000, 0b00000100, //  #          #
+    0b01100000, 0b00000110, // ##          ##
+    0b01100000, 0b00000110, // ##          ##
+    0b11100100, 0b00100011, //###  #    #   ##
+    0b11001100, 0b00110011, //##  ##    ##  ##
+    0b11011000, 0b00011011, //## ##      ## ##
+    0b11011001, 0b10011011, //## ##  ##  ## ##
+    0b11011011, 0b11011011, //## ## #### ## ##
+    0b11011011, 0b11011011, //## ## #### ## ##
+    0b11011001, 0b10011011, //## ##  ##  ## ##
+    0b11011000, 0b00011011, //## ##      ## ##
+    0b11001100, 0b00110011, //##  ##    ##  ##
+    0b11000100, 0b00100011, //##   #    #   ##
+    0b01100000, 0b00000110, // ##          ##
+    0b01100000, 0b00000110, // ##          ##
+    0b00100000, 0b00000100, //  #          #
+    };
+
+constexpr unsigned char ClearMask [32] ={
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+  0b11111111, 0b11111111,//#################
+};
+
+constexpr int icoallArray_LEN = 5;
+const unsigned char *array_[] = {
+  icoWifi1, //0
+  icoWifi2, //1
+  icoWifi3, //2
+  icoWifi_Full, //3
+  WifiCross_RightDiag, //4
+};
+
+
+
 static constexpr byte line_size=6;
 static constexpr int16_t line[line_size]{16, 24, 32, 40, 48, 56};
+
+bool Output::initializeOLED() {
+    if(oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        oled.cp437();
+        oled.clearDisplay();
+        oled.setTextSize(1);
+        oled.setTextColor(WHITE);
+        println("Start");
+        error_codes.remove_error(OLED_ERROR);
+        return true;
+    }
+    error_codes.add_error(OLED_ERROR);
+    return false;
+}
+
 
 void Output::OLED_print(const unsigned char value, const bool clear_line_, const int16_t y , const int16_t x) {
     if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
@@ -346,12 +527,12 @@ int16_t Output::get_cursor_y() {
     return oled.getCursorY();
 }
 
-void Output::animateConnection(byte &a) const {
+void Output::animateConnection(byte &a) {
     if(a>3) a = 0;
     draw_Wifi_icon(a++);
 }
 
-void Output::update_Wifi_RSSI_ICO(const int RSSI) const {
+void Output::update_Wifi_RSSI_ICO(const int RSSI) {
     if(RSSI>-56) {
         draw_Wifi_icon(3);
         return;
@@ -366,7 +547,7 @@ void Output::update_Wifi_RSSI_ICO(const int RSSI) const {
     }
 }
 
-void Output::draw_Wifi_icon(const byte strength) const {//0,1,2,3=full,4=cross
+void Output::draw_Wifi_icon(const byte strength) {//0,1,2,3=full,4=cross
     constexpr byte x=112, y=0;
     oled.drawBitmap(x, y, ClearMask, 16, 16, 0);
     if(strength<4){
@@ -377,7 +558,7 @@ void Output::draw_Wifi_icon(const byte strength) const {//0,1,2,3=full,4=cross
     }
     oled.display();
 }
-void Output::draw_AP_active_icon(const bool draw) const {
+void Output::draw_AP_active_icon(const bool draw) {
     constexpr byte x=92, y=0;
     if(draw)
         oled.drawBitmap( x,  y, ap_ico, 16, 16, 1);
@@ -385,7 +566,7 @@ void Output::draw_AP_active_icon(const bool draw) const {
         clearBlock(x,y,false);
     oled.display();
 }
-void Output::draw_SD_eror_icon(const bool draw) const {
+void Output::draw_SD_eror_icon(const bool draw) {
     constexpr byte x=74, y=0;
     if(draw)
         oled.drawBitmap( x,  y, sd_ico, 16, 16, 1);
@@ -394,8 +575,7 @@ void Output::draw_SD_eror_icon(const bool draw) const {
     oled.display();
 }
 
-
-void Output::clearBlock(const byte x, const byte y, const bool display) const {
+void Output::clearBlock(const byte x, const byte y, const bool display) {
     oled.drawBitmap(x, y, ClearMask, 16, 16, 0);
     if(display)oled.display();
 }

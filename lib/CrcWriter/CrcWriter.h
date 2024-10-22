@@ -8,6 +8,7 @@
 
 
 #include <FastCRC.h>  // https://github.com/FrankBoesing/FastCRC
+#include <Arduino.h>
 
 class CrcWriter {
 public:

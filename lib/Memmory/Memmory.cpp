@@ -6,27 +6,8 @@
 #include <Output.h>
 #include <StreamUtils.h>
 
-
 extern Error_Codes error_codes;
 extern Output output;
-
-Memmory::Memmory(const String &wifiConfigFile) {
-	this->wifiConfigFile = wifiConfigFile;
-}
-
-long Memmory::fromFormatedTime(const String &reminder_time_col){
-	String reminder_time_string = "";
-	for(int j=0; j<5; j++){
-		if(j!=2){
-			reminder_time_string += reminder_time_col.charAt(j);
-			JsonDocument doc;
-			constexpr size_t length =measureJson(doc);
-			auto buf = new byte[length];
-			serializeJson(doc, buf);
-		}
-	}
-	return reminder_time_string.toInt();
-}
 
 
 byte extractHour(const String &formated_time) {
@@ -43,14 +24,12 @@ JsonDocument Memmory::get_latest_Reminder(const String &time_string, JsonDocumen
 	return get_latest_Reminder(t, doc);
 }
 JsonDocument Memmory::get_latest_Reminder(const DateTime &t, JsonDocument &doc){
-	const String time_string = AV_Functions::beautifyTime(t.hour())+AV_Functions::beautifyTime(t.minute());
-	const long current_time = time_string.toInt();
+	const String current_time_string = AV_Functions::beautifyTime(t.hour())+':'+AV_Functions::beautifyTime(t.minute());
 	const size_t total_reminders = doc.size();
 	for(size_t i=0;i<total_reminders;i++){
-		auto reminder_time_str = doc[i]["time"].as<String>();
-		const long reminder_time = fromFormatedTime(reminder_time_str);
-		if(current_time<reminder_time){
-			Serial.println(reminder_time_str);
+		auto reminder_time_string = doc[i]["time"].as<String>();
+		if(current_time_string<reminder_time_string){
+			Serial.println(reminder_time_string);
 			return get_reminder(doc, i);
 		}
 	}
@@ -61,7 +40,7 @@ JsonDocument Memmory::get_latest_Reminder(const unsigned long unixTime, JsonDocu
 	const auto t = DateTime(unixTime);
 	return get_latest_Reminder(t, doc);
 }
-JsonDocument Memmory::get_reminder(JsonDocument &json_array, byte position) {
+JsonDocument Memmory::get_reminder(JsonDocument &json_array, const byte position) {
 	JsonDocument doc;
 	// doc["s"].size()
 	String val = json_array[position];
@@ -72,7 +51,7 @@ JsonDocument Memmory::get_reminder(JsonDocument &json_array, byte position) {
 
 
 
-JsonDocument Memmory::get_all_reminders_from_sd() const {
+JsonDocument Memmory::get_all_reminders_from_sd()  {
 	File file = SD.open(reminderBfile,FILE_READ);
 	JsonDocument doc;
 	if(file){
@@ -101,7 +80,7 @@ bool Memmory::initializeSDFS() {
         return true;
     }
     error_codes.add_error(SD_CARD_ERROR);
-    output.draw_SD_eror_icon();
+    Output::draw_SD_eror_icon();
     return false;
 }
 void Memmory::write_reminders_to_SD(JsonDocument doc){
@@ -172,7 +151,7 @@ void Memmory::sd_print_all_files(const String& path) {
 	file.close();
 	Output::println("--printEnd--");
 }
-void Memmory::save_wifi_cred(const String& ssid_, const String& pass_) const {
+void Memmory::save_wifi_cred(const String& ssid_, const String& pass_) {
 	JsonDocument doc;
 	doc[WIFI_SSID_JSON_KEY] = ssid_;
 	doc[WIFI_PASS_JSON_KEY] = pass_;
@@ -182,7 +161,7 @@ void Memmory::save_wifi_cred(const String& ssid_, const String& pass_) const {
 	file.close();
 	doc.clear();
 }
-bool Memmory::load_wifi_cred(String &WIFI_SSID, String &WIFI_PASS) const {
+bool Memmory::load_wifi_cred(String &WIFI_SSID, String &WIFI_PASS) {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
 		error_codes.add_error(BAD_WIFI_CRED);
 		return false;
@@ -209,4 +188,15 @@ bool Memmory::load_wifi_cred(String &WIFI_SSID, String &WIFI_PASS) const {
 	if(success) error_codes.remove_error(BAD_WIFI_CRED);
 	else error_codes.add_error(BAD_WIFI_CRED);
 	return success;
+}
+
+bool Memmory::resolve_SD_CARD_ERROR() {
+	Output::draw_SD_eror_icon();
+	SD.end();
+	if(initializeSDFS()) {
+		error_codes.remove_error(SD_CARD_ERROR);
+		Output::draw_SD_eror_icon(false);
+		return true;
+	}
+	return false;
 }

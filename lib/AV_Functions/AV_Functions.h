@@ -12,6 +12,8 @@ public:
 
     static String get_formated_Time(const DateTime &curr_time, byte mode=12);
     static String beautifyTime(uint8_t h_m_s);
+    static void printBin(byte aByte);
+    static void printlnBin(byte aByte);
 
 };
 #endif //AV_FUNCTIONS_H

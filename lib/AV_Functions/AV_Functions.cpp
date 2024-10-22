@@ -35,6 +35,18 @@ String AV_Functions::beautifyTime(const uint8_t h_m_s) {
  }
 
 
+void AV_Functions::printBin(const byte aByte) {
+    Serial.print('(');
+    for (int8_t aBit = 7; aBit >= 0; aBit--) {
+        Serial.print(bitRead(aByte, aBit) ? '1' : '0');
+        if(aBit==4) Serial.print(' ');
+    }
+    Serial.print(')');
+}
+void AV_Functions::printlnBin(const byte aByte) {
+    printBin(aByte);
+    Serial.println();
+}
 
 
 
