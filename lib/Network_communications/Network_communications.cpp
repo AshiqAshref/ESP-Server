@@ -1,6 +1,6 @@
 #include "Network_communications.h"
 
-#include <CommunicationHandler.h>
+#include <Command_deactivate_ap.h>
 #include <HTTPClient.h>
 #include <Output.h>
 #include <Memmory.h>
@@ -14,6 +14,8 @@ extern Error_Codes error_codes;
 extern AsyncWebServer server;
 extern String WIFI_SSID;
 extern String WIFI_PASS;
+extern Command_deactivate_ap command_deactivate_ap;
+
 
 const String modeBdat = "/modeBdat.txt";
 const String dataPath = "/dat.txt";
@@ -21,10 +23,12 @@ const String dataPath = "/dat.txt";
 const String PARAM_INPUT_1 = "ssid";
 const String PARAM_INPUT_2 = "pass";
 
-
 bool tryNewPass=false;
 bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 	WiFiClass::mode(WIFI_STA);
+	Output::draw_AP_active_icon(false);
+	server.end();
+
 	WiFi.begin(WIFI_SSID.c_str(), WIFI_PASS.c_str());
 	WiFi.disconnect();
 	WiFi.reconnect();
@@ -36,6 +40,7 @@ bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 		Output::print('.',false);
 		if(millis()-curMil>=10000){
 			Output::println();
+			Output::draw_Wifi_icon(4);
 			error_codes.add_error(WIFI_CONN_ERROR);
 			return false;
 		}
@@ -50,8 +55,6 @@ bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 	error_codes.remove_error(WIFI_CONN_ERROR);
 	if(tryNewPass) {
 		Memmory::save_wifi_cred(WIFI_SSID,WIFI_PASS);
-		server.end();
-		Output::draw_AP_active_icon(false);
 		tryNewPass=false;
 	}
 	return true;
@@ -88,6 +91,8 @@ IPAddress Network_communications::setAccessPoint(){//.....................SET_AC
 	Output::print("AP_IP: ");
 	Output::println(IP.toString(),false);
 	Output::draw_AP_active_icon();
+	Output::draw_Wifi_icon(4);
+
 
 	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
 			request->send(SD, "/data/wifimanager.html","text/html");
@@ -114,11 +119,16 @@ IPAddress Network_communications::setAccessPoint(){//.....................SET_AC
 		}
 		request->send(200, "text/plain", "Reconnecting WiFi");
 		server.end();
-		CommunicationHandler::send_command_deactivate_ap();
+		Output::draw_AP_active_icon(false);
+		command_deactivate_ap.send_request();
 		initializeWiFi();
 	});
 	server.begin();
 	return IP;
+}
+
+IPAddress Network_communications::getAPIP() {
+	return WiFi.softAPIP();
 }
 
 unsigned long previous_reconnect_millis=0;

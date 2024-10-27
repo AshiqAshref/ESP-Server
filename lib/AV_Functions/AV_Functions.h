@@ -2,6 +2,7 @@
 #define AV_FUNCTIONS_H
 #include <Arduino.h>
 #include <RTClib.h>
+#include <ArduinoJson.h>
 
 class AV_Functions {
 public:
@@ -14,6 +15,11 @@ public:
     static String beautifyTime(uint8_t h_m_s);
     static void printBin(byte aByte);
     static void printlnBin(byte aByte);
+    static JsonDocument simplify_Json(const JsonDocument &doc);
+
+    static bool isJsonValid(const JsonDocument &doc);
+
+    static JsonDocument unsimplify_Json(const JsonDocument &doc);
 
 };
 #endif //AV_FUNCTIONS_H

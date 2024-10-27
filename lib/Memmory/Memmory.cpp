@@ -27,13 +27,13 @@ JsonDocument Memmory::get_latest_Reminder(const DateTime &t, JsonDocument &doc){
 	const String current_time_string = AV_Functions::beautifyTime(t.hour())+':'+AV_Functions::beautifyTime(t.minute());
 	const size_t total_reminders = doc.size();
 	for(size_t i=0;i<total_reminders;i++){
-		auto reminder_time_string = doc[i]["time"].as<String>();
+		auto reminder_time_string = doc[i]["t"].as<String>();
 		if(current_time_string<reminder_time_string){
 			Serial.println(reminder_time_string);
 			return get_reminder(doc, i);
 		}
 	}
-	Serial.println(doc[0]["time"].as<String>());
+	Serial.println(doc[0]["t"].as<String>());
 	return get_reminder(doc, 0);
 }
 JsonDocument Memmory::get_latest_Reminder(const unsigned long unixTime, JsonDocument &doc){
@@ -57,8 +57,6 @@ JsonDocument Memmory::get_all_reminders_from_sd()  {
 	if(file){
 		ReadBufferingStream bufferingStream(file, 64);
 		const DeserializationError error = deserializeMsgPack(doc,bufferingStream);
-		// const DeserializationError error = deserializeMsgPack(doc, file);
-		String val = "medicines";
 		if(error){
 			Serial.print("DE:");
 			Serial.println(error.c_str());
@@ -71,9 +69,6 @@ JsonDocument Memmory::get_all_reminders_from_sd()  {
 }
 
 
-
-
-
 bool Memmory::initializeSDFS() {
     if(SD.begin()) {
         error_codes.remove_error(SD_CARD_ERROR);
@@ -83,17 +78,23 @@ bool Memmory::initializeSDFS() {
     Output::draw_SD_eror_icon();
     return false;
 }
-void Memmory::write_reminders_to_SD(JsonDocument doc){
+
+bool Memmory::write_reminders_to_SD(const JsonDocument &reminders_json){
+	JsonDocument doc = AV_Functions::simplify_Json(reminders_json);
+	if(doc.size()==0)
+		return false;
 	File file = SD.open(reminderBfile,FILE_WRITE);
 	if(file){
 		serializeMsgPack(doc, file);
 		doc.clear();
 		file.flush();
 	}else{
-		Serial.println("FE:");
+		return false;
 	}
 	file.close();
+	return true;
 }
+
 void Memmory::writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
 	Output::print("Writing file: "+ path);
 	File file = SD.open(path, mode);

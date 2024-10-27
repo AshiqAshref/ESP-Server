@@ -31,7 +31,7 @@ public:
     static JsonDocument get_latest_Reminder(const DateTime &t, JsonDocument &doc);
 
     static JsonDocument get_reminder(JsonDocument &json_array, byte position);
-    static void write_reminders_to_SD(JsonDocument doc);
+    static bool write_reminders_to_SD(const JsonDocument &reminders_json);
     static JsonDocument get_all_reminders_from_sd() ;
     static String timetoString(const DateTime& t);
 

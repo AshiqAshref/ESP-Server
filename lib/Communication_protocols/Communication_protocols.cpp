@@ -32,7 +32,7 @@ unsigned long Communication_protocols::bytesToLong(const byte *byte_) {
         (static_cast<long>(byte_[3]));
 }
 
-COMM_PROTOCOL Communication_protocols::sendJsonDocument(const JsonDocument &doc, const Commands command, const byte max_retries) {
+COMM_PROTOCOL Communication_protocols::sendJsonDocument(const JsonDocument &doc, const Command_enum command, const byte max_retries) {
     COMM_PROTOCOL response_code = send_response_SYN_ACK(command);
     if(response_code!=ACK) return response_code;
 
@@ -56,7 +56,7 @@ COMM_PROTOCOL Communication_protocols::sendJsonDocument(const JsonDocument &doc,
     send_status_TIMEOUT(command);
     return TIMEOUT;
 }
-JsonDocument Communication_protocols::receive_jsonDocument(const Commands command, const byte max_retries) {
+JsonDocument Communication_protocols::receive_jsonDocument(const Command_enum command, const byte max_retries) {
     JsonDocument doc;
     COMM_PROTOCOL response_code = get_response(command);
     if(response_code!=SYN_ACK) return doc;
@@ -95,7 +95,7 @@ JsonDocument Communication_protocols::receive_jsonDocument(const Commands comman
     send_status_TIMEOUT(command);
     return doc;
 }
-COMM_PROTOCOL Communication_protocols::sendLong(const unsigned long res_long, const Commands command) {
+COMM_PROTOCOL Communication_protocols::sendLong(const unsigned long res_long, const Command_enum command) {
     const COMM_PROTOCOL rescode = send_response_SYN_ACK(command);
     if(rescode!=ACK) return rescode;
 
@@ -117,7 +117,7 @@ COMM_PROTOCOL Communication_protocols::sendLong(const unsigned long res_long, co
     send_status_TIMEOUT(command);
     return TIMEOUT;
 }
-unsigned long Communication_protocols::getLongFromBuffer(const Commands command) {
+unsigned long Communication_protocols::getLongFromBuffer(const Command_enum command) {
     COMM_PROTOCOL rescode = get_response(command);
     if(rescode!=SYN_ACK) return 0;
     send_response_ACK(command);
@@ -147,7 +147,7 @@ unsigned long Communication_protocols::getLongFromBuffer(const Commands command)
     send_status_TIMEOUT(command);
     return 0;
 }
-IPAddress Communication_protocols::receive_IP(const Commands command, const byte max_retries) {
+IPAddress Communication_protocols::receive_IP(const Command_enum command, const byte max_retries) {
     IPAddress IP;
     COMM_PROTOCOL response_code = get_response(command);
     if(response_code!=SYN_ACK) return IP;
@@ -192,7 +192,7 @@ IPAddress Communication_protocols::receive_IP(const Commands command, const byte
     send_status_TIMEOUT(command);
     return IP;
 }
-COMM_PROTOCOL Communication_protocols::send_IP(const IPAddress &IP, const Commands command) {
+COMM_PROTOCOL Communication_protocols::send_IP(const IPAddress &IP, const Command_enum command) {
     COMM_PROTOCOL response_code = send_response_SYN_ACK(command);
     if(response_code!=ACK) return response_code;
 
@@ -209,48 +209,57 @@ COMM_PROTOCOL Communication_protocols::send_IP(const IPAddress &IP, const Comman
 
         FastCRC32 CRC32;
         response_code = sendLong(CRC32.crc32(at ,strlen(a)), command);
-        if(response_code!=SUCCESS) return response_code;
+        if(response_code!=SUCCESS) {
+            return response_code;
+        }
 
         response_code = send_response_SYN_ACK(command,false);
-        if(response_code!=ACK) return response_code;
+        if(response_code!=ACK) {
+            return response_code;
+        }
+
         Serial1.write(strlen(a));
         for(int i=0;i<strlen(a);i++)
             Serial1.write(at[i]);
 
         response_code=get_response(command);
-        if(response_code != RETRY) return response_code;
+        if(response_code != RETRY) {
+            return response_code;
+        }
         current_retries++;
     }
     send_status_TIMEOUT(command);
     return TIMEOUT;
 }
 
-void Communication_protocols::send_request_SYN(const Commands command) {
+void Communication_protocols::send_request_SYN(const Command_enum command) {
     send_header(command , SYN);
 }
-void Communication_protocols::send_request_RETRY(const Commands command) {
+void Communication_protocols::send_request_RETRY(const Command_enum command) {
     send_header(command , RETRY);
 }
-void Communication_protocols::send_status_SUCCESS(const Commands command) {
+void Communication_protocols::send_status_SUCCESS(const Command_enum command) {
     send_header(command , SUCCESS);
 }
-void Communication_protocols::send_status_UNKW_ERROR(const Commands command) {
+void Communication_protocols::send_status_UNKW_ERROR(const Command_enum command) {
     send_header(command , UNKW_ERR);
 }
-void Communication_protocols::send_status_TIMEOUT(const Commands command) {
+void Communication_protocols::send_status_TIMEOUT(const Command_enum command) {
     send_header(command , TIMEOUT);
 }
-void Communication_protocols::send_response_ACK(const Commands command) {
+void Communication_protocols::send_response_ACK(const Command_enum command) {
     send_header(command , ACK);
 }
-void Communication_protocols::close_session(const Commands command) {
+void Communication_protocols::close_session(const Command_enum command) {
     send_header(command , FIN);
 }
-void Communication_protocols::send_header(const byte command, const byte protocol_id) {
+void Communication_protocols::send_header(const Command_enum command, const byte protocol_id) {
     clear_receive_buffer();
+    Serial.print("SND: ");
+    printHeader((command | protocol_id));
     Serial1.write((command | protocol_id));
 }
-COMM_PROTOCOL Communication_protocols::send_response_SYN_ACK(const Commands command, const bool clear_buffer) {
+COMM_PROTOCOL Communication_protocols::send_response_SYN_ACK(const Command_enum command, const bool clear_buffer) {
     send_header(command , SYN_ACK);
     return get_response(command, clear_buffer);
 }
@@ -262,7 +271,7 @@ bool Communication_protocols::wait_for_response() {
             return false;
     return true;
 }
-bool Communication_protocols::wait_for_response(const Commands command) {
+bool Communication_protocols::wait_for_response(const Command_enum command) {
     const unsigned long time_out_start = millis();
     while(!Serial1.available())
         if(millis()-time_out_start>=time_out_) {
@@ -272,7 +281,7 @@ bool Communication_protocols::wait_for_response(const Commands command) {
     return true;
 }
 
-COMM_PROTOCOL Communication_protocols::get_response(const Commands command, const bool clear_buffer)  {
+COMM_PROTOCOL Communication_protocols::get_response(const Command_enum command, const bool clear_buffer)  {
     if(!wait_for_response())
         return TIMEOUT;
     while(Serial1.available()) {
@@ -300,55 +309,46 @@ void Communication_protocols::clear_receive_buffer() {
     while(Serial1.available()>0) Serial1.read();
 }
 
-JsonDocument Communication_protocols::simplify_Json(JsonDocument doc){
-    JsonDocument main_doc;
-    auto main_doc_array= main_doc.to<JsonArray>();
-    size_t doc_array_size = doc.size();
-    for(size_t i=0; i<doc_array_size; i++){
-        JsonDocument reminder_doc;
-        reminder_doc["ti"] =doc[i]["timeId"];
-        reminder_doc["t"] = doc[i]["time"].as<String>();
-        auto med_array = reminder_doc["m"].to<JsonArray>();
-        size_t med_array_size = doc[i]["medicines"].size();
-        for(size_t j=0; j<med_array_size; j++){
-            JsonDocument med_doc;
-            med_doc["b"] = doc[i]["medicines"][j]["medBox"];
-            med_doc["d"] = doc[i]["medicines"][j]["dosage"];
-            med_doc["s"] = doc[i]["medicines"][j]["success"]?1:0;
-            // ReSharper disable once CppExpressionWithoutSideEffects
-            med_array.add(med_doc);
-        }
-        // ReSharper disable once CppExpressionWithoutSideEffects
-        main_doc_array.add(reminder_doc);
-    }
-    doc.clear();
-    return main_doc;
-}
-JsonDocument Communication_protocols::unsimplify_Json(JsonDocument doc){
-    JsonDocument main_doc;
-    auto main_doc_array= main_doc.to<JsonArray>();
-    size_t doc_array_size = doc.size();
-    for(size_t i=0; i<doc_array_size; i++){
-        JsonDocument reminder_doc;
-        reminder_doc["timeId"] =doc[i]["ti"];
-        reminder_doc["time"] = doc[i]["t"].as<String>();
-        auto med_array = reminder_doc["medicines"].to<JsonArray>();
-        size_t med_array_size = doc[i]["m"].size();
-        for(size_t j=0; j<med_array_size; j++){
-            JsonDocument med_doc;
-            med_doc["medBox"] = doc[i]["m"][j]["b"];
-            med_doc["dosage"] = doc[i]["m"][j]["d"];
-            med_doc["success"] = doc[i]["m"][j]["s"]?true:false;
-            // ReSharper disable once CppExpressionWithoutSideEffects
-            med_array.add(med_doc);
-        }
-        // ReSharper disable once CppExpressionWithoutSideEffects
-        main_doc_array.add(reminder_doc);
-    }
-    doc.clear();
-    return main_doc;
+void Communication_protocols::printHeader(const byte header) {
+    Serial.print(command_as_String(getCommand(header)));
+    Serial.print(" : ");
+    Serial.print(protocol_as_String(getProtocol(header)));
+    Serial.println();
 }
 
+String Communication_protocols::protocol_as_String(const byte comm_protocol) {
+    if(comm_protocol==SYN) {
+        return "SYN";
+    }if(comm_protocol==SYN_ACK) {
+        return "SYN_ACK";
+    }if(comm_protocol==ACK) {
+        return "ACK";
+    }if(comm_protocol==FIN) {
+        return "FIN";
+    }if(comm_protocol==UNKW_ERR) {
+        return "UNKW_ERR";
+    }if(comm_protocol==RETRY) {
+        return "RETRY";
+    }if(comm_protocol==SUCCESS) {
+        return "SUCCESS";
+    }if(comm_protocol==TIMEOUT) {
+        return "TIMEOUT";
+    }
+    return "unknown_protocol";
+}
+
+String Communication_protocols::command_as_String(const byte command) {
+    if(command == GET_TIME) {
+        return "GET_TIME";
+    }if(command == GET_REMINDER_B) {
+        return "GET_REMB";
+    }if(command == ACTIVATE_AP) {
+        return "ACT_AP";
+    }if(command == DEACTIVATE_AP) {
+        return "DCT_AP";
+    }
+    return "unknown_command";
+}
 
 
 

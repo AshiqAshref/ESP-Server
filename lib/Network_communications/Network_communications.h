@@ -19,6 +19,8 @@ public:
 
     static IPAddress setAccessPoint();
 
+    static IPAddress getAPIP();
+
     static String handle_index_modeB(const String &remoteIp);
     static String handle_index(const String &remoteIp);
 

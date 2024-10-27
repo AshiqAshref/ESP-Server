@@ -2,10 +2,13 @@
 #define MAIN_H
 #include <Arduino.h>
 #include <Error_Codes.h>
+
 #include <ReminderA.h>
 #include <ReminderB.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <Communication_protocols.h>
+
 
 void updateUiComponents();
 

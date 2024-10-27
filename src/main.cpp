@@ -1,4 +1,7 @@
 #include "main.h"
+#include <Communication_protocols.h>
+#include <Command.h>
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -7,6 +10,10 @@
 #include <NTPClient.h>
 // #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Command_activate_AP.h>
+#include <Command_deactivate_ap.h>
+#include <Command_get_reminderB.h>
+#include <Command_get_time.h>
 
 #include <ReminderA.h>
 #include <ReminderB.h>
@@ -31,6 +38,31 @@ boolean isModeA=false;
 constexpr byte SCREEN_WIDTH =128; // OLED display width, in pixels
 constexpr byte SCREEN_HEIGHT =64; // OLED display height, in pixels
 
+Command_get_time command_get_time = Command_get_time(
+		GET_TIME,
+		[]{},
+		[]{return true;},
+		CommunicationHandler::NTP_request_handler,
+		5000);
+Command_get_reminderB command_get_reminder_b = Command_get_reminderB (
+		GET_REMINDER_B,
+		[]{},
+		[]{return true;},
+		CommunicationHandler::reminder_b_request_handler,
+		5000);
+Command_activate_AP command_activate_AP = Command_activate_AP (
+		ACTIVATE_AP,
+		[]{},
+		[]{return true;},
+		CommunicationHandler::activate_AP_request_handler,
+		5000);
+Command_deactivate_ap command_deactivate_ap = Command_deactivate_ap(
+		DEACTIVATE_AP,
+		CommunicationHandler::send_command_deactivate_ap,
+		CommunicationHandler::deactivate_AP_response_handler,
+		CommunicationHandler::deactivate_AP_request_handler,
+		5000);
+
 auto server = AsyncWebServer(80);
 auto ntpUDP=WiFiUDP();
 auto timeClient = NTPClient(ntpUDP,"time.windows.com",36000);
@@ -45,17 +77,21 @@ void setup() {
 	if(!Output::initializeOLED()) {error_codes.add_error(OLED_ERROR);}
 	if(!Memmory::initializeSDFS()) {error_codes.add_error(SD_CARD_ERROR);}
 	if(!Memmory::load_wifi_cred(WIFI_SSID,WIFI_PASS)) {error_codes.add_error(BAD_WIFI_CRED);}
-	if(!Network_communications::initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
-	if(!Network_communications::initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
-	if(!Network_communications::initializeNTP())  {error_codes.add_error(NTP_ERROR);}
+		WiFiClass::mode(WIFI_STA);
+// if(!Network_communications::initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
+	// if(!Network_communications::initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
+	// if(!Network_communications::initializeNTP())  {error_codes.add_error(NTP_ERROR);}
+	error_codes.add_error(WIFI_CONN_ERROR);
+	error_codes.add_error(MDNS_ERROR);
+	error_codes.add_error(NTP_ERROR);
 	if(!CommunicationHandler::initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
 	Output::print_all_errors();
 }
 
 void loop() {
 	CommunicationHandler::handle_communications();
-	resolve_errors();
-	updateUiComponents();
+	// resolve_errors();
+	// updateUiComponents();
 }
 
 unsigned int prev_RSSI_update=0;
