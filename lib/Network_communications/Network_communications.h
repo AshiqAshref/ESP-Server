@@ -20,6 +20,8 @@ public:
     static IPAddress setAccessPoint();
 
     static IPAddress getAPIP();
+    static IPAddress getWifiIP();
+    static bool wifiConnected();
 
     static String handle_index_modeB(const String &remoteIp);
     static String handle_index(const String &remoteIp);

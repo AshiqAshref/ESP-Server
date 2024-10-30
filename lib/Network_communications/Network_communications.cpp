@@ -1,6 +1,7 @@
 #include "Network_communications.h"
 
 #include <Command_deactivate_ap.h>
+#include <Command_get_network_inf.h>
 #include <HTTPClient.h>
 #include <Output.h>
 #include <Memmory.h>
@@ -15,6 +16,7 @@ extern AsyncWebServer server;
 extern String WIFI_SSID;
 extern String WIFI_PASS;
 extern Command_deactivate_ap command_deactivate_ap;
+extern Command_get_network_inf command_get_network_inf;
 
 
 const String modeBdat = "/modeBdat.txt";
@@ -57,6 +59,7 @@ bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 		Memmory::save_wifi_cred(WIFI_SSID,WIFI_PASS);
 		tryNewPass=false;
 	}
+	command_get_network_inf.send_request();
 	return true;
 }
 
@@ -87,6 +90,7 @@ bool Network_communications::initializeNTP() {
 IPAddress Network_communications::setAccessPoint(){//.....................SET_ACCESSPOINT
 	Output::println("Setting AP");
 	WiFi.softAP("WIFI-MANAGER", nullptr);
+	// command_get_network_inf.send_request();
 	const IPAddress IP = WiFi.softAPIP();
 	Output::print("AP_IP: ");
 	Output::println(IP.toString(),false);
@@ -130,6 +134,13 @@ IPAddress Network_communications::setAccessPoint(){//.....................SET_AC
 IPAddress Network_communications::getAPIP() {
 	return WiFi.softAPIP();
 }
+IPAddress Network_communications::getWifiIP() {
+	return WiFi.localIP();
+}
+bool Network_communications::wifiConnected() {
+	return WiFiClass::status() == WL_CONNECTED;
+}
+
 
 unsigned long previous_reconnect_millis=0;
 constexpr unsigned int reconnect_interval=60000;

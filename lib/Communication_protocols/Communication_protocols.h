@@ -11,17 +11,18 @@ class Communication_protocols {
 protected:
     const unsigned long NTP_refresh_rate_= 3600000;
 
-
-    [[nodiscard]] static COMM_PROTOCOL sendJsonDocument(const JsonDocument &doc, Command_enum command, byte max_retries=20);
-    static JsonDocument receive_jsonDocument(Command_enum command, byte max_retries=20);
+    [[nodiscard]] static COMM_PROTOCOL sendJsonDocument(const JsonDocument &doc, Command_enum command);
+    static JsonDocument receive_jsonDocument(Command_enum command);
     static COMM_PROTOCOL sendLong(unsigned long res_long, Command_enum command);
     static unsigned long getLongFromBuffer(Command_enum command);
 
-    static IPAddress receive_IP(Command_enum command, byte max_retries);
+    static IPAddress receive_IP(Command_enum command);
 
     static COMM_PROTOCOL send_IP(const IPAddress &IP, Command_enum command);
 
     [[nodiscard]] static byte getCommand(byte response_header);
+    static COMM_PROTOCOL send_response_READY_TO_SEND(Command_enum command,bool clear_buffer = true);
+    static void send_response_READY_TO_RECV(Command_enum command);
     static byte getProtocol(byte b);
     static void send_header(Command_enum command, byte protocol_id);
     static void send_request_RETRY(Command_enum command);
