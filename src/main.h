@@ -15,7 +15,6 @@ void updateUiComponents();
 void resolve_errors();
 bool resolve_error(INTERNAL_ERROR_CODE error_code);
 
-String getReminders();
 
 #endif //MAIN_H
 //SD MODULE:  D7 MOSI, D6 MISO, D5 CLK, D0 CS

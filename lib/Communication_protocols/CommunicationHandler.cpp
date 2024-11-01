@@ -2,6 +2,7 @@
 
 #include <AV_Functions.h>
 #include <Command_activate_AP.h>
+#include <Command_daylight_sav.h>
 #include <Command_deactivate_ap.h>
 #include <Command_get_network_inf.h>
 #include <Command_get_reminderB.h>
@@ -23,11 +24,12 @@ extern Command_get_reminderB command_get_reminder_b;
 extern Command_activate_AP command_activate_AP;
 extern Command_deactivate_ap command_deactivate_ap;
 extern Command_get_network_inf command_get_network_inf;
+extern Command_daylight_sav command_daylight_sav;
 
 constexpr byte max_retries=20;
 
-constexpr byte commands_size=5;
-Command *commands[commands_size]= { &command_get_reminder_b, &command_activate_AP,&command_deactivate_ap, &command_get_time, &command_get_network_inf}; // NOLINT(*-slicing)
+constexpr byte commands_size=6;
+Command *commands[commands_size]= { &command_get_reminder_b, &command_activate_AP,&command_deactivate_ap, &command_get_time, &command_get_network_inf, &command_daylight_sav}; // NOLINT(*-slicing)
 
 
 void CommunicationHandler::handle_communications() {
@@ -47,7 +49,7 @@ void CommunicationHandler::handle_communications() {
             }
         }
     }
-    if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)<0) {
+    if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
         timeClient.update();
     }
 }
@@ -104,14 +106,14 @@ void CommunicationHandler::printmode() {
 bool CommunicationHandler::activate_AP_request_handler() {
     Serial.println("ACT_AP - REQ_H");
     constexpr Command_enum command = ACTIVATE_AP;
-    if(send_response_SYN_ACK(command)!=ACK) return false;
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
 
     if(WiFiClass::getMode()==WIFI_MODE_STA || WiFiClass::getMode()==WIFI_MODE_NULL) {
-        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) return false;
+        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
         const IPAddress IP = Network_communications::setAccessPoint();
         if(send_IP(IP,command)==SUCCESS) return true;
     }else if(WiFiClass::getMode()==WIFI_MODE_AP || WiFiClass::getMode()==WIFI_MODE_APSTA) {
-        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) return false;
+        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
         const IPAddress IP = Network_communications::getAPIP();
         if(send_IP(IP,command)==SUCCESS) return true;
     }
@@ -128,18 +130,20 @@ bool CommunicationHandler::deactivate_AP_response_handler()  {
     const COMM_PROTOCOL response_code = get_response(command);
     if(response_code==SUCCESS || response_code== FIN)
         return true;
+    send_status_UNKW_ERROR(command);
     return false;
 }
 bool CommunicationHandler::deactivate_AP_request_handler() {
     Serial.println("DCT_AP REQ_H");
     constexpr Command_enum command = DEACTIVATE_AP;
-    if(send_response_SYN_ACK(command)!=ACK) return false;
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
     if(WiFiClass::getMode()==WIFI_MODE_AP || WiFiClass::getMode()==WIFI_MODE_APSTA) {
         Network_communications::initializeWiFi();
     }
     send_status_SUCCESS(command);
     if(get_response(command)==SUCCESS)
         return true;
+    close_session(command);
     return false;
 }
 
@@ -147,20 +151,24 @@ bool CommunicationHandler::NTP_request_handler() {
     Serial.println("NTP - REQ_H");
     constexpr Command_enum command = GET_TIME;
     if (timeClient.isTimeSet()) {
-        if(send_response_SYN_ACK(command)==ACK)
-            if(sendTime()==SUCCESS)
-                return true;
+        if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
+        if(sendTime()!=SUCCESS) {close_session(command); return false;}
+        return true;
     }
     close_session(command);
     return false;
 }
-
 COMM_PROTOCOL CommunicationHandler::sendTime() {
     constexpr Command_enum command = GET_TIME;
     unsigned long unix_time = timeClient.getEpochTime();
+    const bool dts = Memmory::get_daylight_saving();
     if(timeClient.forceUpdate())
         unix_time = timeClient.getEpochTime();
-    const COMM_PROTOCOL response_code = sendLong(unix_time, command);
+    COMM_PROTOCOL response_code;
+    dts?
+        response_code = sendLong(unix_time+3600, command):
+        response_code = sendLong(unix_time, command);
+
     if(response_code == SUCCESS) {
         Output::print("SUCCESS: ");
         Output::println(Output::get_formated_Time(unix_time));
@@ -171,8 +179,8 @@ COMM_PROTOCOL CommunicationHandler::sendTime() {
 bool CommunicationHandler::reminder_b_request_handler() {
     Serial.println("REMB - REQ_H");
     constexpr Command_enum command = GET_REMINDER_B;
-    if(send_response_SYN_ACK(command)!=ACK) return false;
-    const unsigned long forTime = getLongFromBuffer(command);
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
+    const unsigned long forTime = receive_long(command);
     if(!forTime) {
         send_status_UNKW_ERROR(command);
         return false;
@@ -185,21 +193,94 @@ bool CommunicationHandler::reminder_b_request_handler() {
     return false;
 }
 
+void CommunicationHandler::send_command_daylight_sav() {
+    send_request_SYN(DAYLIGHT_SAV);
+}
+bool CommunicationHandler::daylight_sav_response_handler(const bool daylight_sav,const bool command_type) {
+    Serial.println("DLT_SV RES_H");
+    constexpr Command_enum command=DAYLIGHT_SAV;
+    send_response_ACK(command);
 
+    if(command_type) {
+        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+        return daylight_sav_send_dls(daylight_sav);
+    }
+    send_response_READY_TO_RECV(command);
+    if(get_response(command)!=READY_TO_SEND){close_session(command); return false;}
+    send_response_READY_TO_RECV(command);
+    return daylight_sav_receive_dls();
+
+}
+bool CommunicationHandler::daylight_sav_request_handler(const bool daylight_sav) {
+    Serial.println("DLT_SV REQ_H");
+    constexpr Command_enum command = DAYLIGHT_SAV;
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
+
+    const COMM_PROTOCOL response_code = get_response(command);
+    if(response_code==READY_TO_SEND) {
+        send_response_READY_TO_RECV(command);
+        return daylight_sav_receive_dls();
+    }
+    if(response_code==READY_TO_RECV) {
+        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+        return daylight_sav_send_dls(daylight_sav);
+    }
+    return true;
+}
+bool CommunicationHandler::daylight_sav_receive_dls() {
+    Serial.println("DLS_SV - REC");
+    constexpr Command_enum command = DAYLIGHT_SAV;
+    if(get_response(command)!=READY_TO_SEND) {close_session(command); return false;}
+    send_response_READY_TO_RECV(command);
+
+    if(!wait_for_response(command)) return false;
+    const byte response = Serial.read();
+    if(response==153) {
+        Memmory::set_daylight_saving(true);
+    }else if(response==102) {
+        Memmory::set_daylight_saving(false);
+    }else {
+        close_session(command);
+        return false;
+    }
+    send_status_SUCCESS(command);
+    Serial.print("RCV DLS SUCC VAL: ");
+    Serial.println(response);
+    return true;
+}
+
+bool CommunicationHandler::daylight_sav_send_dls(const bool daylight_sav) {
+    Serial.println("DLS-SV - SND");
+    constexpr Command_enum command = DAYLIGHT_SAV;
+    if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+    daylight_sav?
+        Serial1.write(153):
+        Serial1.write(102);
+    Memmory::set_daylight_saving(daylight_sav);
+    if(get_response(command)!=SUCCESS) {close_session(command); return false;}
+    Serial.print("SENT DLS SUCC VAL: ");
+    Serial.println(daylight_sav);
+    return true;
+}
+
+
+void CommunicationHandler::send_command_get_network_inf() {
+    send_request_SYN(GET_NETWORK_INF);
+}
 bool CommunicationHandler::get_network_inf_request_handler() {
     Serial.println("NET_INF - REQ_H");
     constexpr Command_enum command = GET_NETWORK_INF;
-    if(send_response_SYN_ACK(command)!=ACK) return false;
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
     if(WiFiClass::getMode()==WIFI_MODE_AP || WiFiClass::getMode()==WIFI_MODE_APSTA) {
         Serial1.write(24);
         Serial1.write(24+10);
-        if(get_response(command)!=SUCCESS) return false;
+        if(get_response(command)!=SUCCESS) {close_session(command); return false;}
         const IPAddress ip = Network_communications::getAPIP();
         send_IP(ip,command);
     }if(WiFiClass::getMode()==WIFI_MODE_STA ) {
         Serial1.write(60);
         Serial1.write(60+10);
-        if(get_response(command)!=SUCCESS) return false;
+        if(get_response(command)!=SUCCESS) {close_session(command); return false;}
         auto ip=IPAddress(1,1,1,1);
         if(Network_communications::wifiConnected())
             ip = Network_communications::getWifiIP();
@@ -216,11 +297,10 @@ bool CommunicationHandler::get_network_inf_response_handler() {
     constexpr Command_enum command = GET_NETWORK_INF;
     send_response_ACK(command);
     if(get_response(command)==SUCCESS)return true;
+    close_session(command);
     return false;
 }
-void CommunicationHandler::send_command_get_network_inf() {
-    send_request_SYN(GET_NETWORK_INF);
-}
+
 
 
 bool CommunicationHandler::initializeHardwareSerial(){

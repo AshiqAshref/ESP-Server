@@ -9,18 +9,8 @@
 extern Error_Codes error_codes;
 extern Output output;
 
-
-byte extractHour(const String &formated_time) {
-	return formated_time.substring(0, 2).toInt();
-}
-byte extractMinute(const String &formated_time) {
-	return formated_time.substring(3, 5).toInt();
-}
-String Memmory::timetoString(const DateTime& t){
-	return AV_Functions::beautifyTime(t.hour())+":"+ AV_Functions::beautifyTime(t.minute());
-}
 JsonDocument Memmory::get_latest_Reminder(const String &time_string, JsonDocument &doc){
-	const auto t = DateTime(0,0,0,extractHour(time_string), extractMinute(time_string),0);
+	const auto t = DateTime(0,0,0,AV_Functions::extractHour(time_string), AV_Functions::extractMinute(time_string),0);
 	return get_latest_Reminder(t, doc);
 }
 JsonDocument Memmory::get_latest_Reminder(const DateTime &t, JsonDocument &doc){
@@ -42,7 +32,6 @@ JsonDocument Memmory::get_latest_Reminder(const unsigned long unixTime, JsonDocu
 }
 JsonDocument Memmory::get_reminder(JsonDocument &json_array, const byte position) {
 	JsonDocument doc;
-	// doc["s"].size()
 	String val = json_array[position];
 	deserializeJson(doc, val);
 	json_array.clear();
@@ -52,8 +41,9 @@ JsonDocument Memmory::get_reminder(JsonDocument &json_array, const byte position
 
 
 JsonDocument Memmory::get_all_reminders_from_sd()  {
-	File file = SD.open(reminderBfile,FILE_READ);
 	JsonDocument doc;
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return doc;
+	File file = SD.open(reminderBfile,FILE_READ);
 	if(file){
 		ReadBufferingStream bufferingStream(file, 64);
 		const DeserializationError error = deserializeMsgPack(doc,bufferingStream);
@@ -80,6 +70,7 @@ bool Memmory::initializeSDFS() {
 }
 
 bool Memmory::write_reminders_to_SD(const JsonDocument &reminders_json){
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
 	JsonDocument doc = AV_Functions::simplify_Json(reminders_json);
 	if(doc.size()==0)
 		return false;
@@ -96,6 +87,7 @@ bool Memmory::write_reminders_to_SD(const JsonDocument &reminders_json){
 }
 
 void Memmory::writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	Output::print("Writing file: "+ path);
 	File file = SD.open(path, mode);
 	if(!file){
@@ -108,7 +100,31 @@ void Memmory::writeFile(const String &path, const char *message, const char *mod
 	}
 	file.close();
 }
+
+
+bool Memmory::get_daylight_saving() {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
+	if(!SD.exists(daylight_saving_file)) {
+		writeFile(daylight_saving_file, "false", FILE_WRITE);
+		return false;
+	}
+	String dlt_stat=readLine(daylight_saving_file,0);
+	dlt_stat.trim();
+	if(dlt_stat.equals("true"))return true;
+	return false;
+}
+
+void Memmory::set_daylight_saving(const bool dlt_sv) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
+	String dlt_stat=readLine(daylight_saving_file,0);
+	dlt_stat.trim();
+	if(dlt_stat.equals("true") && dlt_sv==false)
+		writeFile(daylight_saving_file, "false", FILE_WRITE);
+	else if(dlt_stat.equals("false") && dlt_sv==true)
+		writeFile(daylight_saving_file, "true", FILE_WRITE);
+}
 String Memmory::readFile(const String& path){//....................READ_FILE_SD
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return "";
 	Output::println("Reading file: "+ String(path));
 	File file = SD.open(path,"r");
 	if(!file || file.isDirectory()){
@@ -139,12 +155,14 @@ String Memmory::readLine(File file, const byte line_no) {
 	return "";
 }
 String Memmory::readLine(const String& path, const byte line_no) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return "";
 	File file =  SD.open(path,"r");
 	String line =readLine(file, line_no);
 	file.close();
 	return line;
 }
 void Memmory::sd_print_all_files(const String& path) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	File file = SD.open(path, "r");
 	Output::println("--printBgn--");
 	while(file.available())
@@ -153,6 +171,7 @@ void Memmory::sd_print_all_files(const String& path) {
 	Output::println("--printEnd--");
 }
 void Memmory::save_wifi_cred(const String& ssid_, const String& pass_) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	JsonDocument doc;
 	doc[WIFI_SSID_JSON_KEY] = ssid_;
 	doc[WIFI_PASS_JSON_KEY] = pass_;
@@ -163,7 +182,7 @@ void Memmory::save_wifi_cred(const String& ssid_, const String& pass_) {
 	doc.clear();
 }
 bool Memmory::load_wifi_cred(String &WIFI_SSID, String &WIFI_PASS) {
-	if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) {
 		error_codes.add_error(BAD_WIFI_CRED);
 		return false;
 	}if(!SD.exists(wifiConfigFile)) {
@@ -200,4 +219,8 @@ bool Memmory::resolve_SD_CARD_ERROR() {
 		return true;
 	}
 	return false;
+}
+
+String Memmory::timetoString(const DateTime& t){
+	return AV_Functions::beautifyTime(t.hour())+":"+ AV_Functions::beautifyTime(t.minute());
 }

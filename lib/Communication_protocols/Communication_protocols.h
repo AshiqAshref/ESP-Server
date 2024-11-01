@@ -14,10 +14,8 @@ protected:
     [[nodiscard]] static COMM_PROTOCOL sendJsonDocument(const JsonDocument &doc, Command_enum command);
     static JsonDocument receive_jsonDocument(Command_enum command);
     static COMM_PROTOCOL sendLong(unsigned long res_long, Command_enum command);
-    static unsigned long getLongFromBuffer(Command_enum command);
-
+    static unsigned long receive_long(Command_enum command);
     static IPAddress receive_IP(Command_enum command);
-
     static COMM_PROTOCOL send_IP(const IPAddress &IP, Command_enum command);
 
     [[nodiscard]] static byte getCommand(byte response_header);

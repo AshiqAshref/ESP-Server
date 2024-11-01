@@ -28,6 +28,7 @@ enum Command_enum:byte {
     ACTIVATE_AP =       0b00000100,
     DEACTIVATE_AP =     0b00000010,
     GET_NETWORK_INF =   0b00000011,
+    DAYLIGHT_SAV =      0b00001011,
     COMMAND_FILTER =    0b00001111
 };
 
@@ -57,16 +58,6 @@ protected:
 
 public:
     virtual void send_request(){
-		// if(command_==GET_TIME)
-		// 	Serial.print("get_time ");
-		// if(command_ == GET_REMINDER_B) {
-  //       	Serial.print("GET_REMB ");
-  //       }if(command_ == ACTIVATE_AP) {
-  //           Serial.print("ACT_AP ");
-  //       }if(command_ == DEACTIVATE_AP) {
-  //           Serial.print("DCT_AP ");
-  //       }
-  //       Serial.println("STARTING SND_REQ");
         this->set_status(IN_PROGRESS);
         this->send_request_();
     }
@@ -76,16 +67,16 @@ public:
         this->last_millis = millis();
     }
 
-    void request_handler() const {
-        // Serial.println("STARTING REQ_H");
+    virtual void request_handler() {
         this->request_handler_();
     }
-    void response_handler() {
-        // Serial.println("STARTING RES_H");
+    virtual void response_handler() {
         this->response_handler_()?
             this->set_status(COMPLETED):
             this->set_status(FAILED);
     }
+
+
 
     virtual Command_enum command()=0;
     CommandStatus status() const {return status_;}

@@ -3,7 +3,7 @@
 
 
 void Error_Codes::add_error(const INTERNAL_ERROR_CODE error_code) {
-    if(check_if_error_exist(error_code)==-1) {
+    if(!check_if_error_exist(error_code)) {
         error_codes[total_active_errors_] = error_code;
         total_active_errors_++;
     }
@@ -17,7 +17,14 @@ byte Error_Codes::get_error_code(const byte index) const {
     return get_error(index);
 }
 
-int Error_Codes::check_if_error_exist(const INTERNAL_ERROR_CODE error_code) const {
+bool Error_Codes::check_if_error_exist(const INTERNAL_ERROR_CODE error_code) const {
+    for(int i=0;i<total_active_errors_;i++)
+        if(error_codes[i]==error_code)
+            return true;
+    return false;
+}
+
+int Error_Codes::get_error_index(const INTERNAL_ERROR_CODE error_code) const {
     for(int i=0;i<total_active_errors_;i++)
         if(error_codes[i]==error_code)
             return i;
@@ -25,7 +32,7 @@ int Error_Codes::check_if_error_exist(const INTERNAL_ERROR_CODE error_code) cons
 }
 
 void Error_Codes::remove_error(const INTERNAL_ERROR_CODE error_code) {
-    const int result = check_if_error_exist(error_code);
+    const int result = get_error_index(error_code);
     if( result!=-1) {
         for(byte i = result; i < total_active_errors_; i++)
             if(i+1<total_active_errors_)

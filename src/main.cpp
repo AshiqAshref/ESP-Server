@@ -1,21 +1,18 @@
 #include "main.h"
-#include <Communication_protocols.h>
-#include <Command.h>
-
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
-// #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
 #include <Command_activate_AP.h>
 #include <Command_deactivate_ap.h>
 #include <Command_get_network_inf.h>
 #include <Command_get_reminderB.h>
 #include <Command_get_time.h>
-
+#include <Command_daylight_sav.h>
 #include <ReminderA.h>
 #include <ReminderB.h>
 #include <Error_Codes.h>
@@ -23,14 +20,12 @@
 #include <Memmory.h>
 #include <Network_communications.h>
 #include <Output.h>
+#include <Communication_protocols.h>
+
 
 auto reminderA = ReminderA();
 auto reminderB = ReminderB();
 
-
-
-// String WIFI_SSID="Guest";
-// String WIFI_PASS="vFM95xht";
 String WIFI_SSID="";
 String WIFI_PASS="";
 
@@ -68,7 +63,14 @@ auto command_get_network_inf = Command_get_network_inf(
 		CommunicationHandler::get_network_inf_response_handler,
 		CommunicationHandler::get_network_inf_request_handler,
 		2000);
-auto server = AsyncWebServer(80);
+auto command_daylight_sav = Command_daylight_sav(
+		CommunicationHandler::send_command_daylight_sav,
+		CommunicationHandler::daylight_sav_response_handler,
+		CommunicationHandler::daylight_sav_request_handler,
+		10000);
+
+auto ap_server = AsyncWebServer(80);
+auto server= WiFiServer(80);
 auto ntpUDP=WiFiUDP();
 auto timeClient = NTPClient(ntpUDP,"time.windows.com",36000);
 auto oled=Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT,&Wire,-1);
@@ -77,16 +79,9 @@ auto comms = Communication_protocols();
 
 void setup() {
 	Serial.begin(115200);
-	Serial.println("Started");
-	Serial.println("Line1");
 	if(!Output::initializeOLED()) {error_codes.add_error(OLED_ERROR);}
 	if(!Memmory::initializeSDFS()) {error_codes.add_error(SD_CARD_ERROR);}
 	if(!Memmory::load_wifi_cred(WIFI_SSID,WIFI_PASS)) {error_codes.add_error(BAD_WIFI_CRED);}
-		// WiFiClass::mode(WIFI_STA);
-	// error_codes.add_error(WIFI_CONN_ERROR);
-	// error_codes.add_error(MDNS_ERROR);
-	// error_codes.add_error(NTP_ERROR);
-
 	if(!Network_communications::initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
 	if(!Network_communications::initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
 	if(!Network_communications::initializeNTP())  {error_codes.add_error(NTP_ERROR);}
@@ -96,6 +91,7 @@ void setup() {
 
 void loop() {
 	CommunicationHandler::handle_communications();
+	Network_communications::handle_network_comms();
 	resolve_errors();
 	updateUiComponents();
 }
@@ -151,127 +147,6 @@ bool resolve_error(const INTERNAL_ERROR_CODE error_code) {
 	return false;
 }
 
-
-String getReminders() {
-	String json =R"(
-		[
-				{
-						"timeId": 24,
-						"time": "00:10",
-						"medicines": [
-								{
-										"medBox": 9,
-										"dosage": 1,
-										"success": false
-								}
-						]
-				},
-				{
-						"timeId": 6,
-						"time": "00:20",
-						"medicines": [
-								{
-										"medBox": 14,
-										"dosage": 2,
-										"success": false
-								},
-								{
-										"medBox": 9,
-										"dosage": 3,
-										"success": false
-								}
-						]
-				},
-				{
-						"timeId": 4,
-						"time": "10:05",
-						"medicines": [
-								{
-										"medBox": 7,
-										"dosage": 3,
-										"success": false
-								}
-						]
-				},
-				{
-						"timeId": 3,
-						"time": "20:45",
-						"medicines": [
-								{
-										"medBox": 7,
-										"dosage": 2,
-										"success": false
-								},
-								{
-										"medBox": 14,
-										"dosage": 4,
-										"success": false
-								}
-						]
-				}
-		])";
-	return json;
-}
-
-// void addRemindes() {
-//     String json =R"(
-//     [
-//         {
-//             "timeId": 24,
-//             "time": "00:10",
-//             "medicines": [
-//                 {
-//                     "medBox": 9,
-//                     "dosage": 1,
-//                     "success": false
-//                 }
-//             ]
-//         },
-//         {
-//             "timeId": 6,
-//             "time": "00:20",
-//             "medicines": [
-//                 {
-//                     "medBox": 14,
-//                     "dosage": 2,
-//                     "success": false
-//                 },
-//                 {
-//                     "medBox": 9,
-//                     "dosage": 3,
-//                     "success": false
-//                 }
-//             ]
-//         },
-//         {
-//             "timeId": 4,
-//             "time": "10:05",
-//             "medicines": [
-//                 {
-//                     "medBox": 7,
-//                     "dosage": 3,
-//                     "success": false
-//                 }
-//             ]
-//         },
-//         {
-//             "timeId": 3,
-//             "time": "20:45",
-//             "medicines": [
-//                 {
-//                     "medBox": 7,
-//                     "dosage": 2,
-//                     "success": false
-//                 },
-//                 {
-//                     "medBox": 14,
-//                     "dosage": 4,
-//                     "success": false
-//                 }
-//             ]
-//         }
-//     ])";
-// }
 
 // void setup() {  //.......................................................................SETUP
 //   Serial.begin(9600);

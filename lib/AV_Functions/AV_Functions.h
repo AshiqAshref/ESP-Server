@@ -21,5 +21,8 @@ public:
 
     static JsonDocument unsimplify_Json(const JsonDocument &doc);
 
+    static byte extractHour(const String &formated_time);
+
+    static byte extractMinute(const String &formated_time);
 };
 #endif //AV_FUNCTIONS_H

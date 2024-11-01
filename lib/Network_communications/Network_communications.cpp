@@ -12,7 +12,8 @@
 
 extern NTPClient timeClient;
 extern Error_Codes error_codes;
-extern AsyncWebServer server;
+extern AsyncWebServer ap_server;
+extern WiFiServer server;
 extern String WIFI_SSID;
 extern String WIFI_PASS;
 extern Command_deactivate_ap command_deactivate_ap;
@@ -26,10 +27,40 @@ const String PARAM_INPUT_1 = "ssid";
 const String PARAM_INPUT_2 = "pass";
 
 bool tryNewPass=false;
+
+void Network_communications::handle_network_comms() {
+	WiFiClient client = server.available();
+	if (client) {
+		handle_client(client);
+	}
+}
+
+void Network_communications::handle_client(WiFiClient client) {
+	const String remoteIp=client.remoteIP().toString();
+	Output::print("RemoteIp..: ");
+	Output::println(remoteIp);
+	Output::print("RemotePort: ");
+	Output::println(client.remotePort());
+
+	while (client.connected()){
+		if (client.available()){
+			Output::print("Got SomeThing: ");
+			String line = client.readString();
+			Output::println(line);
+			client.println("HTTP/1.1 200 OK");
+			client.println();
+			client.println("DONE");
+			client.stop();
+			handle_index_modeB(remoteIp);
+		}
+	}
+}
+
 bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 	WiFiClass::mode(WIFI_STA);
 	Output::draw_AP_active_icon(false);
-	server.end();
+	ap_server.end();
+	server.begin();
 
 	WiFi.begin(WIFI_SSID.c_str(), WIFI_PASS.c_str());
 	WiFi.disconnect();
@@ -44,6 +75,7 @@ bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 			Output::println();
 			Output::draw_Wifi_icon(4);
 			error_codes.add_error(WIFI_CONN_ERROR);
+			server.end();
 			return false;
 		}
 		Output::animateConnection(a);
@@ -60,11 +92,14 @@ bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 		tryNewPass=false;
 	}
 	command_get_network_inf.send_request();
+	ap_server.end();
+	server.begin();
+	server.begin();
 	return true;
 }
 
 bool Network_communications::initializeMDNS() {
-	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)<0) {
+	if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
 		if(MDNS.begin("esp32")) {
 			error_codes.remove_error(MDNS_ERROR);
 			return true;
@@ -75,7 +110,7 @@ bool Network_communications::initializeMDNS() {
 }
 
 bool Network_communications::initializeNTP() {
-	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)<0){
+	if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)){
 		timeClient.begin();
 		timeClient.forceUpdate();
 		if(timeClient.isTimeSet()) {
@@ -98,12 +133,12 @@ IPAddress Network_communications::setAccessPoint(){//.....................SET_AC
 	Output::draw_Wifi_icon(4);
 
 
-	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+	ap_server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
 			request->send(SD, "/data/wifimanager.html","text/html");
 	});
-	server.serveStatic("/", SD, "/data/");
+	ap_server.serveStatic("/", SD, "/data/");
 
-	server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
+	ap_server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
 		const size_t params = request->params();
 		for(size_t i=0;i<params;i++){
 			const AsyncWebParameter* p = request->getParam(i);
@@ -122,12 +157,13 @@ IPAddress Network_communications::setAccessPoint(){//.....................SET_AC
 			}
 		}
 		request->send(200, "text/plain", "Reconnecting WiFi");
-		server.end();
+		ap_server.end();
 		Output::draw_AP_active_icon(false);
 		command_deactivate_ap.send_request();
 		initializeWiFi();
 	});
-	server.begin();
+	server.end();
+	ap_server.begin();
 	return IP;
 }
 
@@ -141,7 +177,6 @@ bool Network_communications::wifiConnected() {
 	return WiFiClass::status() == WL_CONNECTED;
 }
 
-
 unsigned long previous_reconnect_millis=0;
 constexpr unsigned int reconnect_interval=60000;
 bool Network_communications::resolve_WIFI_CONN_ERROR() {
@@ -151,19 +186,21 @@ bool Network_communications::resolve_WIFI_CONN_ERROR() {
 		Output::println(WiFi.localIP().toString(), false);
 		Output::print("ID: ");
 		Output::println(WiFiClass::getHostname(), false);
+		server.end();
+		server.begin();
 		if(tryNewPass) {
 			Memmory::save_wifi_cred(WIFI_SSID,WIFI_PASS);
 			Output::draw_AP_active_icon(false);
 			tryNewPass=false;
 		}
 		return true;
-	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)>-1) {
+	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)) {
 		return Memmory::load_wifi_cred(WIFI_SSID,WIFI_PASS);
-	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)>-1) {
+	}if(error_codes.check_if_error_exist(BAD_WIFI_CRED)) {
 		return false;
-	}if(error_codes.check_if_error_exist(SD_CARD_ERROR)>-1) {
+	}if(error_codes.check_if_error_exist(SD_CARD_ERROR)) {
 		return false;
-	}if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)>-1) {
+	}if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
 		if ((WiFiClass::status() != WL_CONNECTED) && (millis() -  previous_reconnect_millis>=reconnect_interval)) {
 			WiFi.disconnect();
 			WiFi.reconnect();
@@ -180,8 +217,7 @@ bool Network_communications::resolve_MDNS_ERROR() {
 }
 
 bool Network_communications::resolve_BAD_WIFI_CRED() {
-	if(error_codes.check_if_error_exist(SD_CARD_ERROR))
-		return false;
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR))return false;
 	return Memmory::load_wifi_cred(WIFI_SSID,WIFI_PASS);
 }
 

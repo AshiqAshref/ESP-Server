@@ -148,5 +148,10 @@ JsonDocument AV_Functions::unsimplify_Json(const JsonDocument &doc){
 }
 
 
-
+byte AV_Functions::extractHour(const String &formated_time) {
+    return formated_time.substring(0, 2).toInt();
+}
+byte AV_Functions::extractMinute(const String &formated_time) {
+    return formated_time.substring(3, 5).toInt();
+}
 

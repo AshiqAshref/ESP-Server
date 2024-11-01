@@ -22,7 +22,10 @@ public:
     void remove_error(INTERNAL_ERROR_CODE error_code);
     [[nodiscard]] INTERNAL_ERROR_CODE get_error(byte index) const;
     [[nodiscard]] byte get_error_code(byte index) const;
-    [[nodiscard]] int check_if_error_exist(INTERNAL_ERROR_CODE error_code) const;
+    [[nodiscard]] bool check_if_error_exist(INTERNAL_ERROR_CODE error_code) const;
+
+    int get_error_index(INTERNAL_ERROR_CODE error_code) const;
+
     [[nodiscard]] byte total_errors() const {return total_active_errors_;}
 
     // static String get_error_as_string(INTERNAL_ERROR_CODE error_code);

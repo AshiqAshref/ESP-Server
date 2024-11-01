@@ -32,8 +32,8 @@ unsigned long Communication_protocols::bytesToLong(const byte *byte_) {
 }
 
 COMM_PROTOCOL Communication_protocols::sendJsonDocument(const JsonDocument &doc, const Command_enum command) {
-    COMM_PROTOCOL response_code = send_response_SYN_ACK(command);
-    if(response_code!=ACK) return response_code;
+    COMM_PROTOCOL response_code = send_response_READY_TO_SEND(command);
+    if(response_code!=READY_TO_RECV) return response_code;
 
     byte current_retries = 0;
     while(current_retries<max_retries) {
@@ -58,8 +58,8 @@ COMM_PROTOCOL Communication_protocols::sendJsonDocument(const JsonDocument &doc,
 JsonDocument Communication_protocols::receive_jsonDocument(const Command_enum command) {
     JsonDocument doc;
     COMM_PROTOCOL response_code = get_response(command);
-    if(response_code!=SYN_ACK) return doc;
-    send_response_ACK(command);
+    if(response_code!=READY_TO_SEND) return doc;
+    send_response_READY_TO_RECV(command);
 
     byte current_retries = 0;
     while(current_retries<max_retries) {
@@ -68,7 +68,7 @@ JsonDocument Communication_protocols::receive_jsonDocument(const Command_enum co
             response_code = get_response(command,false);
             if (response_code!=RETRY) return doc;
         }
-        const uint32_t crc = getLongFromBuffer(command);
+        const uint32_t crc = receive_long(command);
         if(!crc) {
             close_session(command);
             return doc;
@@ -95,8 +95,8 @@ JsonDocument Communication_protocols::receive_jsonDocument(const Command_enum co
     return doc;
 }
 COMM_PROTOCOL Communication_protocols::sendLong(const unsigned long res_long, const Command_enum command) {
-    const COMM_PROTOCOL rescode = send_response_SYN_ACK(command);
-    if(rescode!=ACK) return rescode;
+    const COMM_PROTOCOL rescode = send_response_READY_TO_SEND(command);
+    if(rescode!=READY_TO_RECV) return rescode;
 
     byte current_retries = 0;
     while(current_retries<max_retries) {
@@ -115,10 +115,10 @@ COMM_PROTOCOL Communication_protocols::sendLong(const unsigned long res_long, co
     send_status_TIMEOUT(command);
     return TIMEOUT;
 }
-unsigned long Communication_protocols::getLongFromBuffer(const Command_enum command) {
+unsigned long Communication_protocols::receive_long(const Command_enum command) {
     COMM_PROTOCOL rescode = get_response(command);
-    if(rescode!=SYN_ACK) return 0;
-    send_response_ACK(command);
+    if(rescode!=READY_TO_SEND) return 0;
+    send_response_READY_TO_RECV(command);
 
     byte current_retries = 0;
     while(current_retries<max_retries) {
@@ -147,8 +147,8 @@ unsigned long Communication_protocols::getLongFromBuffer(const Command_enum comm
 IPAddress Communication_protocols::receive_IP(const Command_enum command) {
     IPAddress IP;
     COMM_PROTOCOL response_code = get_response(command);
-    if(response_code!=SYN_ACK) return IP;
-    send_response_ACK(command);
+    if(response_code!=READY_TO_SEND) return IP;
+    send_response_READY_TO_RECV(command);
 
     byte current_retries = 0;
     while(current_retries<max_retries) {
@@ -157,16 +157,13 @@ IPAddress Communication_protocols::receive_IP(const Command_enum command) {
             response_code = get_response(command,false);
             if (response_code!=RETRY) return IP;
         }
-        const uint32_t crc = getLongFromBuffer(command);
+        const uint32_t crc = receive_long(command);
         if(!crc) {
             close_session(command);
             return IP;
         }
 
-        if(get_response(command)!=READY_TO_SEND) {
-            close_session(command);
-            return IP;
-        }
+        if(get_response(command)!=READY_TO_SEND) return IP;
         send_response_READY_TO_RECV(command);
 
         if(!wait_for_response(command)) return IP;
@@ -191,8 +188,8 @@ IPAddress Communication_protocols::receive_IP(const Command_enum command) {
 }
 COMM_PROTOCOL Communication_protocols::send_IP(const IPAddress &IP, const Command_enum command) {
     Serial.println("SND_IP");
-    COMM_PROTOCOL response_code = send_response_SYN_ACK(command);
-    if(response_code!=ACK) return response_code;
+    COMM_PROTOCOL response_code = send_response_READY_TO_SEND(command);
+    if(response_code!=READY_TO_RECV) return response_code;
 
     const String ip = IP.toString();
     const auto a = ip.c_str();
@@ -286,32 +283,33 @@ bool Communication_protocols::wait_for_response(const Command_enum command) {
 }
 
 COMM_PROTOCOL Communication_protocols::get_response(const Command_enum command, const bool clear_buffer)  {
-    if(!wait_for_response())
-        return TIMEOUT;
-    if(Serial1.available()) {
-        const byte response_header = Serial1.read();
-        if(getCommand(response_header)==command) {
-            if(getProtocol(response_header)==ACK) {
-                return ACK;
-            }if(getProtocol(response_header)==SYN_ACK) {
-                return SYN_ACK;
-            }if(getProtocol(response_header)==READY_TO_RECV) {
-                return READY_TO_RECV;
-            }if(getProtocol(response_header)==READY_TO_SEND) {
-                return READY_TO_SEND;
-            }if(getProtocol(response_header)==RETRY) {
-                return RETRY;
-            }if(getProtocol(response_header)==FIN) {
-                return FIN;
-            }if(getProtocol(response_header)==SUCCESS) {
-                return SUCCESS;
-            }if(getProtocol(response_header)==TIMEOUT) {
-                return TIMEOUT;
-            }
+    COMM_PROTOCOL protocol = UNKW_ERR;
+    if(!wait_for_response(command)) return TIMEOUT;
+    const byte response_header = Serial1.read();
+    if(getCommand(response_header)==command) {
+        const byte byte_protocol = getProtocol(response_header);
+        if(byte_protocol==ACK) {
+            protocol = ACK;
+        }else if(byte_protocol==SYN_ACK) {
+            protocol = SYN_ACK;
+        }else if(byte_protocol==READY_TO_RECV) {
+            protocol = READY_TO_RECV;
+        }else if(byte_protocol==READY_TO_SEND) {
+            protocol = READY_TO_SEND;
+        }else if(byte_protocol==RETRY) {
+            protocol = RETRY;
+        }else if(byte_protocol==FIN) {
+            protocol = FIN;
+        }else if(byte_protocol==SUCCESS) {
+            protocol = SUCCESS;
+        }else if(byte_protocol==TIMEOUT) {
+            protocol = TIMEOUT;
         }
-        if(clear_buffer) clear_receive_buffer();
     }
-    return UNKW_ERR;
+    if(clear_buffer) clear_receive_buffer();
+    Serial.print("RCV: ");
+    Serial.println(protocol_as_String(protocol));
+    return protocol;
 }
 
 
@@ -362,9 +360,12 @@ String Communication_protocols::command_as_String(const byte command) {
         return "DCT_AP";
     }if(command == GET_NETWORK_INF) {
         return "GET_NETWORK_INF";
+    }if(command == DAYLIGHT_SAV) {
+        return "DAYLIGHT_SAV";
     }
     return "unknown_command";
 }
+
 
 
 

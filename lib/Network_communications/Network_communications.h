@@ -5,9 +5,15 @@
 #ifndef NETWORK_COMMUNICATIONS_H
 #define NETWORK_COMMUNICATIONS_H
 #include <Arduino.h>
+#include <WiFiClient.h>
 
 class Network_communications {
+    static void handle_client(WiFiClient client);
+
 public:
+    static void handle_network_comms();
+
+
     static bool initializeWiFi();
     static bool initializeMDNS();
     static bool initializeNTP();

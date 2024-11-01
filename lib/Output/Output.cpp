@@ -191,30 +191,29 @@ bool Output::initializeOLED() {
 
 
 void Output::OLED_print(const unsigned char value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.print(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.print(value);
+    oled.display();
 }
 void Output::OLED_println(const unsigned char value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.println(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.println(value);
+    oled.display();
+
 }
 void Output::print(const unsigned char value, const bool clear_line_, const int16_t y , const int16_t x) {
     Serial.print(value);
@@ -227,30 +226,30 @@ void Output::println(const unsigned char value, const bool clear_line_, const in
 }
 
 void Output::OLED_print(const char value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.print(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.print(value);
+    oled.display();
+
 }
 void Output::OLED_println(const char value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.println(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.println(value);
+    oled.display();
+
 }
 void Output::print(const char value, const bool clear_line_, const int16_t y , const int16_t x) {
     Serial.print(value);
@@ -262,30 +261,30 @@ void Output::println(const char value, const bool clear_line_, const int16_t y ,
 }
 
 void Output::OLED_print(const long value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.print(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.print(value);
+    oled.display();
+
 }
 void Output::OLED_println(const long value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.println(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.println(value);
+    oled.display();
+
 }
 void Output::print(const long value, const bool clear_line_, const int16_t y , const int16_t x) {
     Serial.print(value);
@@ -297,30 +296,30 @@ void Output::println(const long value, const bool clear_line_, const int16_t y ,
 }
 
 void Output::OLED_print(const unsigned long value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.print(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.print(value);
+    oled.display();
+
 }
 void Output::OLED_println(const unsigned long value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.println(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.println(value);
+    oled.display();
+
 }
 void Output::print(const unsigned long value, const bool clear_line_, const int16_t y , const int16_t x) {
     Serial.print(value);
@@ -332,30 +331,30 @@ void Output::println(const unsigned long value, const bool clear_line_, const in
 }
 
 void Output::OLED_print(const String &value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.print(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.print(value);
+    oled.display();
+
 }
 void Output::OLED_println(const String &value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.println(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.println(value);
+    oled.display();
+
 }
 void Output::print(const String &value, const bool clear_line_, const int16_t y , const int16_t x) {
     OLED_print(value, clear_line_, y, x);
@@ -371,30 +370,30 @@ void Output::println() {
 }
 
 void Output::OLED_print(const int value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.print(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.print(value);
+    oled.display();
+
 }
 void Output::OLED_println(const int value, const bool clear_line_, const int16_t y , const int16_t x) {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0) {
-        if(y!=-1 || x!=0) {
-            if(y<line_size) oled.setCursor(x,line[y]);
-            else oled.setCursor(x,y);
-        }
-        if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
-        else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
-        if(clear_line_)clear_line();
-        oled.println(value);
-        oled.display();
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(y!=-1 || x!=0) {
+        if(y<line_size) oled.setCursor(x,line[y]);
+        else oled.setCursor(x,y);
     }
+    if(oled.getCursorY()<line[0]) oled.setCursor(oled.getCursorX(),line[0]);
+    else if(oled.getCursorY()>line[line_size-1]) clear_line(0);
+    if(clear_line_)clear_line();
+    oled.println(value);
+    oled.display();
+
 }
 void Output::print(const int value, const bool clear_line_, const int16_t y , const int16_t x) {
     Serial.print(value);
@@ -486,17 +485,17 @@ void Output::println_error(const INTERNAL_ERROR_CODE error_code) {
     println();
 }
 void Output::print_all_errors() {
-    if(error_codes.check_if_error_exist(OLED_ERROR)<0){
-        if(error_codes.total_errors()!=0) {
-            println("Active_Errors: {");
-            for(short i=0;i<error_codes.total_errors();i++) {
-                println_error(error_codes.get_error(i));
-            }
-            println('}');
-        }else {
-            println("No active errors");
+    if(error_codes.check_if_error_exist(OLED_ERROR)) return;
+    if(error_codes.total_errors()!=0) {
+        println("Active_Errors: {");
+        for(short i=0;i<error_codes.total_errors();i++) {
+            println_error(error_codes.get_error(i));
         }
+        println('}');
+    }else {
+        println("No active errors");
     }
+
 }
 
 byte Output::get_current_line() {
