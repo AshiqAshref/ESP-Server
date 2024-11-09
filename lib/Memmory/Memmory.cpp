@@ -110,10 +110,11 @@ bool Memmory::get_daylight_saving() {
 	}
 	String dlt_stat=readLine(daylight_saving_file,0);
 	dlt_stat.trim();
+	Serial.print("GET_DLS read_line: ");
+	Serial.println(dlt_stat);
 	if(dlt_stat.equals("true"))return true;
 	return false;
 }
-
 void Memmory::set_daylight_saving(const bool dlt_sv) {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	String dlt_stat=readLine(daylight_saving_file,0);
@@ -122,7 +123,58 @@ void Memmory::set_daylight_saving(const bool dlt_sv) {
 		writeFile(daylight_saving_file, "false", FILE_WRITE);
 	else if(dlt_stat.equals("false") && dlt_sv==true)
 		writeFile(daylight_saving_file, "true", FILE_WRITE);
+	Serial.print("WRITTEN_DLS read_line: ");
+	Serial.println(readLine(daylight_saving_file,0));
 }
+
+
+IPAddress Memmory::get_server_ip() {
+	IPAddress ip(0,0,0,0);
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return ip;
+	if(!SD.exists(server_ip_file)) {
+		writeFile(server_ip_file, ip.toString().c_str(), FILE_WRITE);
+		return ip;
+	}
+	String server_ip_string=readLine(server_ip_file,0);
+	server_ip_string.trim();
+	ip.fromString(server_ip_string);
+	return ip;
+}
+void Memmory::set_server_ip(const IPAddress &server_ip) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
+	String old_server_ip_string=readLine(server_ip_file,0);
+	old_server_ip_string.trim();
+	if(!old_server_ip_string.equals(server_ip.toString()))
+		writeFile(server_ip_file, server_ip.toString().c_str(), FILE_WRITE);
+}
+
+unsigned long Memmory::get_reminder_b_revision_no() {
+	unsigned long revision_no=0;
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return revision_no;
+	if(!SD.exists(reminder_b_revision_file)) {
+		char buf[16];
+		ultoa(revision_no,buf,10);
+		writeFile(reminder_b_revision_file, buf, FILE_WRITE);
+		return revision_no;
+	}
+	String revision_no_string=readLine(reminder_b_revision_file,0);
+	revision_no_string.trim();
+	revision_no= strtol(revision_no_string.c_str(), nullptr, 10);
+	return revision_no;
+}
+void Memmory::set_reminder_b_revision_no(const unsigned long revision_no) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
+	String old_remb_rev_no_str=readLine(reminder_b_revision_file,0);
+	old_remb_rev_no_str.trim();
+	const u_int32_t old_remb_rev_no_long = strtol(old_remb_rev_no_str.c_str(), nullptr, 10);
+	if(old_remb_rev_no_long!=revision_no) {
+		char buf[16];
+		ultoa(revision_no,buf,10);
+		writeFile(reminder_b_revision_file, buf, FILE_WRITE);
+	}
+}
+
+
 String Memmory::readFile(const String& path){//....................READ_FILE_SD
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return "";
 	Output::println("Reading file: "+ String(path));
@@ -195,7 +247,7 @@ bool Memmory::load_wifi_cred(String &WIFI_SSID, String &WIFI_PASS) {
 	bool success=true;
 
 	deserializeJson(doc,file);
-	if (!doc.containsKey(WIFI_SSID_JSON_KEY) || !doc.containsKey(WIFI_PASS_JSON_KEY)) {
+	if (!doc[WIFI_SSID_JSON_KEY].is<String>() || !doc[WIFI_PASS_JSON_KEY].is<String>()) {
 		success = false;
 	}else if(doc[WIFI_SSID_JSON_KEY].as<String>().length()<1 || doc[WIFI_PASS_JSON_KEY].as<String>().length()<8){
 		success = false;

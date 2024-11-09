@@ -142,6 +142,43 @@ constexpr unsigned char ap_ico[32] = {
     0b00100000, 0b00000100, //  #          #
     };
 
+constexpr unsigned char server_ico []  = {
+    0b11111111, 0b11111111, //################
+    0b10000000, 0b00000001, //#              #
+    0b10111111, 0b11111101, //# ############ #
+    0b10100000, 0b00000101, //# #          # #
+    0b10100000, 0b01010101, //# #      # # # #
+    0b10100000, 0b00000101, //# #          # #
+    0b10111111, 0b11111101, //# ############ #
+    0b10000000, 0b00000001, //#              #
+    0b10000000, 0b00000001, //#              #
+    0b10111111, 0b11111101, //# ############ #
+    0b10100000, 0b00000101, //# #          # #
+    0b10100000, 0b01000101, //# #      #   # #
+    0b10100000, 0b00000101, //# #          # #
+    0b10111111, 0b11111101, //# ############ #
+    0b10000000, 0b00000001, //#              #
+    0b11111111, 0b11111111, //################
+  };
+constexpr unsigned char cross_ico[32]={
+    0b11000000, 0b00000000, //##
+    0b11100000, 0b00000000, //###
+    0b01110000, 0b00000000, // ###
+    0b00111000, 0b00000000, //  ###
+    0b00011100, 0b00000000, //   ###
+    0b00001110, 0b00000000, //    ###
+    0b00000111, 0b00000000, //     ###
+    0b00000011, 0b10000000, //      ###
+    0b00000001, 0b11000000, //       ###
+    0b00000000, 0b11100000, //        ###
+    0b00000000, 0b01110000, //         ###
+    0b00000000, 0b00111000, //          ###
+    0b00000000, 0b00011100, //           ###
+    0b00000000, 0b00001110, //            ###
+    0b00000000, 0b00000111, //             ###
+    0b00000000, 0b00000011, //              ##
+  };
+
 constexpr unsigned char ClearMask [32] ={
   0b11111111, 0b11111111,//#################
   0b11111111, 0b11111111,//#################
@@ -457,28 +494,9 @@ int16_t Output::clear_line(const int16_t y) {
 void Output::clear_display() {
     oled.clearDisplay();
 }
-String Output::get_error_as_string(const INTERNAL_ERROR_CODE error_code) {
-    if(error_code==BAD_WIFI_CRED)
-        return "BAD_WIFI_CRED";
-    if(error_code==WIFI_CONN_ERROR)
-        return "WIFI_CONN_ERROR";
-    if (error_code == SD_CARD_ERROR)
-        return "SD_CARD_ERROR";
-    if(error_code == SOFT_SERIAL_ERROR)
-        return "SOFT_SERIAL_ERROR";
-    if(error_code == SETTING_AP_FAIL)
-        return "SETTING_AP_FAIL";
-    if(error_code == OLED_ERROR)
-        return "OLED_ERROR";
-    if(error_code == MDNS_ERROR)
-        return "MDNS_ERROR";
-    if(error_code == NTP_ERROR)
-        return "NTP_ERROR";
-    return "INVALID ERROR CODDE";
-}
 
 void Output::print_error(const INTERNAL_ERROR_CODE error_code) {
-    print(get_error_as_string(error_code));
+    print(Error_Codes::get_error_as_string(error_code));
 }
 void Output::println_error(const INTERNAL_ERROR_CODE error_code) {
     print_error(error_code);
@@ -566,11 +584,25 @@ void Output::draw_AP_active_icon(const bool draw) {
     oled.display();
 }
 void Output::draw_SD_eror_icon(const bool draw) {
-    constexpr byte x=74, y=0;
+    constexpr byte x=55, y=0;
     if(draw)
         oled.drawBitmap( x,  y, sd_ico, 16, 16, 1);
     else
         clearBlock(x,y,false);
+    oled.display();
+}
+
+void Output::draw_server_icon(const bool success) {
+    constexpr byte x=74, y=0;
+
+    if(success) {
+        clearBlock(x,y,false);
+        oled.drawBitmap( x,  y, server_ico, 16, 16, 1);
+    }else {
+        clearBlock(x,y,false);
+        oled.drawBitmap(x, y, cross_ico, 16, 16, 1);
+        oled.drawBitmap(x, y,server_ico, 16, 16, 1);
+    }
     oled.display();
 }
 

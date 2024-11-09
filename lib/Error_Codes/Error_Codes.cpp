@@ -42,25 +42,27 @@ void Error_Codes::remove_error(const INTERNAL_ERROR_CODE error_code) {
 }
 
 
-// String Error_Codes::get_error_as_string(const INTERNAL_ERROR_CODE error_code) {
-//     if(error_code==BAD_WIFI_CRED)
-//         return "BAD_WIFI_CRED";
-//     if(error_code==WIFI_CONN_ERROR)
-//         return "WIFI_CONN_ERROR";
-//     if (error_code == SD_CARD_ERROR)
-//         return "SD_CARD_ERROR";
-//     if(error_code == SOFT_SERIAL_ERROR)
-//         return "SOFT_SERIAL_ERROR";
-//     if(error_code == SETTING_AP_FAIL)
-//         return "SETTING_AP_FAIL";
-//     if(error_code == OLED_ERROR)
-//         return "OLED_ERROR";
-//     if(error_code == MDNS_ERROR)
-//         return "MDNS_ERROR";
-//     if(error_code == NTP_ERROR)
-//         return "NTP_ERROR";
-//     return "INVALID ERROR CODDE";
-// }
+String Error_Codes::get_error_as_string(const INTERNAL_ERROR_CODE error_code) {
+    if(error_code==BAD_WIFI_CRED)
+        return "BAD_WIFI_CRED";
+    if(error_code==WIFI_CONN_ERROR)
+        return "WIFI_CONN_ERROR";
+    if (error_code == SD_CARD_ERROR)
+        return "SD_CARD_ERROR";
+    if(error_code == SOFT_SERIAL_ERROR)
+        return "SOFT_SERIAL_ERROR";
+    if(error_code == SETTING_AP_FAIL)
+        return "SETTING_AP_FAIL";
+    if(error_code == OLED_ERROR)
+        return "OLED_ERROR";
+    if(error_code == MDNS_ERROR)
+        return "MDNS_ERROR";
+    if(error_code == NTP_ERROR)
+        return "NTP_ERROR";
+    if(error_code == SERVER_ERROR)
+        return "SERVER_ERROR";
+    return "INVALID ERROR CODDE";
+}
 
 
 

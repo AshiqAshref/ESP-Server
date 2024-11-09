@@ -145,32 +145,44 @@ unsigned long Communication_protocols::receive_long(const Command_enum command) 
     return 0;
 }
 IPAddress Communication_protocols::receive_IP(const Command_enum command) {
+    Serial.println("RECV_IP");
     IPAddress IP;
     COMM_PROTOCOL response_code = get_response(command);
-    if(response_code!=READY_TO_SEND) return IP;
-    send_response_READY_TO_RECV(command);
+    if(response_code!=READY_TO_SEND) {
+        return IP;
+    }send_response_READY_TO_RECV(command);
 
     byte current_retries = 0;
     while(current_retries<max_retries) {
         if(current_retries>0) {
             send_request_RETRY(command);
             response_code = get_response(command,false);
-            if (response_code!=RETRY) return IP;
+            if (response_code!=RETRY) {
+                return IP;
+            }
         }
+
         const uint32_t crc = receive_long(command);
         if(!crc) {
             close_session(command);
+            Serial.println();
             return IP;
         }
 
-        if(get_response(command)!=READY_TO_SEND) return IP;
+        if(get_response(command)!=READY_TO_SEND) {
+            close_session(command);
+            return IP;
+        }
         send_response_READY_TO_RECV(command);
 
         if(!wait_for_response(command)) return IP;
         const byte size = Serial1.read();
         uint8_t ip_byte[size];
-        for(int i=0;i<size;i++)
-            ip_byte[size]= Serial1.read();
+
+        for(int i=0;i<size;i++) {
+            if(!wait_for_response(command)) return IP;
+            ip_byte[i]= Serial1.read();
+        }
 
         FastCRC32 CRC32;
         if(CRC32.crc32(ip_byte ,size) == crc) {
@@ -186,12 +198,16 @@ IPAddress Communication_protocols::receive_IP(const Command_enum command) {
     send_status_TIMEOUT(command);
     return IP;
 }
+
 COMM_PROTOCOL Communication_protocols::send_IP(const IPAddress &IP, const Command_enum command) {
     Serial.println("SND_IP");
     COMM_PROTOCOL response_code = send_response_READY_TO_SEND(command);
     if(response_code!=READY_TO_RECV) return response_code;
+    String ip;
+    IP.toString()=="0.0.0.0"?
+        ip = "1.1.1.1":
+        ip = IP.toString();
 
-    const String ip = IP.toString();
     const auto a = ip.c_str();
     uint8_t at[strlen(a)];
     for (size_t i = 0; i < strlen(a); i++) {
@@ -308,7 +324,7 @@ COMM_PROTOCOL Communication_protocols::get_response(const Command_enum command, 
     }
     if(clear_buffer) clear_receive_buffer();
     Serial.print("RCV: ");
-    Serial.println(protocol_as_String(protocol));
+    printHeader((command | protocol));
     return protocol;
 }
 
@@ -362,6 +378,8 @@ String Communication_protocols::command_as_String(const byte command) {
         return "GET_NETWORK_INF";
     }if(command == DAYLIGHT_SAV) {
         return "DAYLIGHT_SAV";
+    }if(command == SERVER_IP) {
+        return "SERVER_IP";
     }
     return "unknown_command";
 }

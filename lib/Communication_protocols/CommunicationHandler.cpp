@@ -7,6 +7,7 @@
 #include <Command_get_network_inf.h>
 #include <Command_get_reminderB.h>
 #include <Command_get_time.h>
+#include <Command_server_ip.h>
 
 #include <Memmory.h>
 #include <Network_communications.h>
@@ -25,18 +26,19 @@ extern Command_activate_AP command_activate_AP;
 extern Command_deactivate_ap command_deactivate_ap;
 extern Command_get_network_inf command_get_network_inf;
 extern Command_daylight_sav command_daylight_sav;
+extern Command_server_ip command_server_ip;
 
 constexpr byte max_retries=20;
 
-constexpr byte commands_size=6;
-Command *commands[commands_size]= { &command_get_reminder_b, &command_activate_AP,&command_deactivate_ap, &command_get_time, &command_get_network_inf, &command_daylight_sav}; // NOLINT(*-slicing)
+constexpr byte commands_size=7;
+Command *commands[commands_size]= { &command_get_reminder_b, &command_activate_AP,&command_deactivate_ap, &command_get_time, &command_get_network_inf, &command_daylight_sav, &command_server_ip}; // NOLINT(*-slicing)
 
 
 void CommunicationHandler::handle_communications() {
     if(Serial1.available()){
         const byte response_header = Serial1.read();
         Serial.println();
-        Serial.print("RCV: ");
+        Serial.print("RCV_MAIN: ");
         printHeader(response_header);
         clear_receive_buffer();
         handle_header(response_header);
@@ -76,7 +78,8 @@ void CommunicationHandler::handle_header(const byte response_header) {
                 commands[i]->set_status(FAILED);
                 break;
             }
-            Serial.println("FOUND NADA");
+            Serial.print("FOUND NADA: ");
+            AV_Functions::printlnBin(response_header);
             send_status_UNKW_ERROR(commands[i]->command());
             break;
         }
@@ -202,16 +205,15 @@ bool CommunicationHandler::daylight_sav_response_handler(const bool daylight_sav
     send_response_ACK(command);
 
     if(command_type) {
-        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
-        return daylight_sav_send_dls(daylight_sav);
+        send_response_READY_TO_RECV(command);
+        if(get_response(command)!=READY_TO_SEND){close_session(command); return false;}
+        send_response_READY_TO_RECV(command);
+        return daylight_sav_receive_dls();
     }
-    send_response_READY_TO_RECV(command);
-    if(get_response(command)!=READY_TO_SEND){close_session(command); return false;}
-    send_response_READY_TO_RECV(command);
-    return daylight_sav_receive_dls();
-
+    if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+    return daylight_sav_send_dls(daylight_sav);
 }
-bool CommunicationHandler::daylight_sav_request_handler(const bool daylight_sav) {
+bool CommunicationHandler::daylight_sav_request_handler() {
     Serial.println("DLT_SV REQ_H");
     constexpr Command_enum command = DAYLIGHT_SAV;
     if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
@@ -223,7 +225,7 @@ bool CommunicationHandler::daylight_sav_request_handler(const bool daylight_sav)
     }
     if(response_code==READY_TO_RECV) {
         if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
-        return daylight_sav_send_dls(daylight_sav);
+        return daylight_sav_send_dls(Memmory::get_daylight_saving());
     }
     return true;
 }
@@ -234,7 +236,7 @@ bool CommunicationHandler::daylight_sav_receive_dls() {
     send_response_READY_TO_RECV(command);
 
     if(!wait_for_response(command)) return false;
-    const byte response = Serial.read();
+    const byte response = Serial1.read();
     if(response==153) {
         Memmory::set_daylight_saving(true);
     }else if(response==102) {
@@ -248,7 +250,6 @@ bool CommunicationHandler::daylight_sav_receive_dls() {
     Serial.println(response);
     return true;
 }
-
 bool CommunicationHandler::daylight_sav_send_dls(const bool daylight_sav) {
     Serial.println("DLS-SV - SND");
     constexpr Command_enum command = DAYLIGHT_SAV;
@@ -260,6 +261,70 @@ bool CommunicationHandler::daylight_sav_send_dls(const bool daylight_sav) {
     if(get_response(command)!=SUCCESS) {close_session(command); return false;}
     Serial.print("SENT DLS SUCC VAL: ");
     Serial.println(daylight_sav);
+    return true;
+}
+
+
+void CommunicationHandler::send_command_server_ip() {
+    send_request_SYN(SERVER_IP);
+}
+bool CommunicationHandler::server_ip_response_handler(const IPAddress &server_ip, const bool command_type) {
+    Serial.println("SRV_IP RES_H");
+    constexpr Command_enum command=SERVER_IP;
+    send_response_ACK(command);
+
+    if(command_type) {
+        send_response_READY_TO_RECV(command);
+        if(get_response(command)!=READY_TO_SEND){close_session(command); return false;}
+        send_response_READY_TO_RECV(command);
+        return server_ip_receive_ip();
+    }
+    if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+    return server_ip_send_ip(server_ip);
+}
+bool CommunicationHandler::server_ip_request_handler() {
+    Serial.println("SRV_IP REQ_H");
+    constexpr Command_enum command = SERVER_IP;
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
+
+    const COMM_PROTOCOL response_code = get_response(command);
+    if(response_code==READY_TO_SEND) {
+        send_response_READY_TO_RECV(command);
+        return server_ip_receive_ip();
+    }
+    if(response_code==READY_TO_RECV) {
+        if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+        return server_ip_send_ip(Memmory::get_server_ip());
+    }
+    return true;
+}
+bool CommunicationHandler::server_ip_receive_ip() {
+    Serial.println("SRV_IP - REC");
+    constexpr Command_enum command = SERVER_IP;
+    if(get_response(command)!=READY_TO_SEND) {close_session(command); return false;}
+    send_response_READY_TO_RECV(command);
+
+    const IPAddress ip =receive_IP(command);
+    if(ip.toString()=="0.0.0.0") {
+        close_session(command);
+        return false;
+    }
+    Memmory::set_server_ip(ip);
+    command_server_ip.set_server_ip(ip);
+
+    send_status_SUCCESS(command);
+    Serial.print("RCV SRV_IP SUCC VAL: ");
+    Serial.println(ip);
+    return true;
+}
+bool CommunicationHandler::server_ip_send_ip(const IPAddress &server_ip) {
+    Serial.println("SRV_IP - SND");
+    constexpr Command_enum command = SERVER_IP;
+    Memmory::set_server_ip(server_ip);
+    if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
+    if(send_IP(server_ip,command)!=SUCCESS) {close_session(command); return false;}
+    Serial.print("SENT SRV_IP SUCC VAL: ");
+    Serial.println(server_ip);
     return true;
 }
 
@@ -300,8 +365,6 @@ bool CommunicationHandler::get_network_inf_response_handler() {
     close_session(command);
     return false;
 }
-
-
 
 bool CommunicationHandler::initializeHardwareSerial(){
     Serial1.begin(115200,SERIAL_8N1,16,17);

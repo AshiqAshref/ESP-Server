@@ -10,23 +10,19 @@ class Command_daylight_sav final : public Command{
     bool daylight_sav =false;
     bool command_type_ = RES_GET;
     bool (*response_handler_bool)(bool,bool);
-    bool (*request_handler_bool)(bool);
 
 public:
     Command_daylight_sav(void(*send_request)(),
         bool (*response_handler_bool)(bool,bool),
-        bool(*request_handler_bool)(bool),
+        bool(*request_handler)(),
         const unsigned long retry_interval_on_fail
         ) : Command(
                 DAYLIGHT_SAV,
                 send_request,
                 []{return true;},
-                []{return true;},
+                request_handler,
                 retry_interval_on_fail
-                ),response_handler_bool(response_handler_bool), request_handler_bool(request_handler_bool)
-    {
-        this->Command::set_status(IN_PROGRESS);
-    }
+                ),response_handler_bool(response_handler_bool){}
 
     Command_enum command() override {return this->command_;}
     bool command_type() const {return this->command_type_;}
@@ -43,12 +39,5 @@ public:
         }else
             this->set_status(FAILED);
     }
-
-    void request_handler() override {
-        this->request_handler_bool(this->daylight_sav);
-    }
 };
-
-
-
 #endif //COMMAND_DAYLIGHT_SAV_H

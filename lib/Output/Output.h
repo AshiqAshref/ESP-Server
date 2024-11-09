@@ -47,7 +47,6 @@ public:
 
   static String beautifyTime(uint8_t h_m_s);
   static String get_formated_Time(unsigned long unix_time, byte mode = 12);
-  static String get_error_as_string(INTERNAL_ERROR_CODE error_code);
   static void print_all_errors();
   static void print_error(INTERNAL_ERROR_CODE error_code);
   static void println_error(INTERNAL_ERROR_CODE error_code);
@@ -61,6 +60,8 @@ public:
   static void animateConnection(byte &a);
   static void draw_Wifi_icon(byte strength);
   static void draw_SD_eror_icon(bool draw=true);
+  static void draw_server_icon(bool success=true);
+
   static void draw_AP_active_icon(bool draw=true);
   static void clearBlock(byte x,  byte y, bool display=true);
   static void update_Wifi_RSSI_ICO(int RSSI);

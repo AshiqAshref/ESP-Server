@@ -13,6 +13,7 @@
 #include <Command_get_reminderB.h>
 #include <Command_get_time.h>
 #include <Command_daylight_sav.h>
+#include <Command_server_ip.h>
 #include <ReminderA.h>
 #include <ReminderB.h>
 #include <Error_Codes.h>
@@ -68,6 +69,11 @@ auto command_daylight_sav = Command_daylight_sav(
 		CommunicationHandler::daylight_sav_response_handler,
 		CommunicationHandler::daylight_sav_request_handler,
 		10000);
+auto command_server_ip = Command_server_ip(
+		CommunicationHandler::send_command_server_ip,
+		CommunicationHandler::server_ip_response_handler,
+		CommunicationHandler::server_ip_request_handler,
+		3000);
 
 auto ap_server = AsyncWebServer(80);
 auto server= WiFiServer(80);
@@ -85,7 +91,9 @@ void setup() {
 	if(!Network_communications::initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
 	if(!Network_communications::initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
 	if(!Network_communications::initializeNTP())  {error_codes.add_error(NTP_ERROR);}
+	if(!Network_communications::server_conn_test()) {error_codes.add_error(SERVER_ERROR);}
 	if(!CommunicationHandler::initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
+	command_server_ip.set_server_ip(Memmory::get_server_ip());
 	Output::print_all_errors();
 }
 
@@ -96,11 +104,12 @@ void loop() {
 	updateUiComponents();
 }
 
-unsigned int prev_RSSI_update=0;
 constexpr unsigned int RSSI_update_interval=3000;
+unsigned int last_RSSI_update_millis=0;
+
 void updateUiComponents(){
-	if(millis()-prev_RSSI_update>RSSI_update_interval){
-		prev_RSSI_update=millis();
+	if(millis()-last_RSSI_update_millis>RSSI_update_interval){
+		last_RSSI_update_millis=millis();
 		if(WiFiClass::status() == WL_CONNECTED) {
 			Output::update_Wifi_RSSI_ICO(WiFi.RSSI());
 		}else {
@@ -127,7 +136,7 @@ bool resolve_error(const INTERNAL_ERROR_CODE error_code) {
 	if(error_code==WIFI_CONN_ERROR) {
 		Output::draw_Wifi_icon(4);
 		if(Network_communications::resolve_WIFI_CONN_ERROR()) {
-			prev_RSSI_update = 0;
+			last_RSSI_update_millis = 0;
 			if(!Network_communications::initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
 			if(!Network_communications::initializeNTP())  {error_codes.add_error(NTP_ERROR);}
 			return true;
@@ -143,146 +152,8 @@ bool resolve_error(const INTERNAL_ERROR_CODE error_code) {
 		return Network_communications::resolve_BAD_WIFI_CRED();
 	}if(error_code==SOFT_SERIAL_ERROR) {
 		return CommunicationHandler::initializeHardwareSerial();
+	}if(error_code==SERVER_ERROR) {
+		return Network_communications::server_conn_test();
 	}
 	return false;
 }
-
-
-// void setup() {  //.......................................................................SETUP
-//   Serial.begin(9600);
-//   initializeHardwareSerial();
-//   initializeRTC();
-//   initializeSDFS();
-//   while (!Serial) {}
-//
-//   pinMode(LED_BUILTIN, OUTPUT);
-//
-//   ssid = readFile(ssidPath);
-//   pass = readFile(passPath);
-//
-//   if(initializeWiFi()){
-//     Output::println("We Have Connection!");
-//   }else{
-//     Output::println("Couldnt Connect to the Network");
-//     setAccessPoint();
-//   }
-//
-//   String b=readFile(modePath);
-//   b.trim();
-//
-//   if(b.equalsIgnoreCase("MODE_B")){
-//     DS1307_RTC.adjust(DateTime(0,0,0,0,16,55));
-//     isModeA=false;
-//     reminderB= checkUpcommingB(DateTime(0,0,0, DS1307_RTC.now().hour(), DS1307_RTC.now().minute(), DS1307_RTC.now().second()));
-//   }else if(b.equalsIgnoreCase("MODE_A")){
-//     DS1307_RTC.adjust(DateTime(0,0,0,17,04,55));
-//     isModeA=true;
-//     reminderA= checkUpcomming(DateTime(0,0,0, DS1307_RTC.now().hour(), DS1307_RTC.now().minute(), DS1307_RTC.now().second()));
-//   }
-//
-//   server.begin();
-//   ser.begin();
-// }
-
-// unsigned long currentMillis=0;
-// boolean alarmFlag=true;
-// void loop() {//.......................................LOOP
-//   if (WiFiClient client = ser.accept()){
-//     const String remoteIp=client.remoteIP().toString();
-//     Output::print("RemoteIp..: ");
-//     Output::println(remoteIp);
-//     Output::print("RemotePort: ");
-//     Output::println(client.remotePort());
-//
-//     while (client.connected()){
-//       if (client.available()){
-//         Output::print("Got SomeThing: ");
-//         String line = client.readString();
-//         Output::println(line);
-//         Output::println("-----");
-//         Output::println();
-//         client.Output::println("HTTP/1.1 200 OK");
-//         client.Output::println();
-//         client.Output::println("DONE");
-//         client.stop();
-//         if(isModeA)
-//           handle_index(remoteIp);
-//         else
-//           handle_index_modeB(remoteIp);
-//       }
-//     }
-//   }
-//
-//   if(millis()-currentMillis>=1000){
-//     currentMillis=millis();
-//     const auto rtc=DateTime(0,0,0,DS1307_RTC.now().hour(), DS1307_RTC.now().minute(), DS1307_RTC.now().second());
-//
-//     // Output::print("Time Now: ");
-//     // Output::print(String(rtc.hour())+" : "+String(rtc.minute())+" : "+String(rtc.second()));
-//
-//     if(isModeA){
-//       // Output::print(" Upcomming--> ");
-//       // Output::print(reminder.Upc.hour());
-//       // Output::print(":");
-//       // Output::print(reminder.Upc.minute());
-//       // Output::print(" isModeA: ");
-//       // Output::println(isModeA);
-//
-//       if(DateTime(0,0,0,rtc.hour(),rtc.minute())==DateTime(0,0,0,reminderA.get_date_time().hour(),reminderA.get_date_time().minute())){
-//         Output::println("<<ALARMMMMMM>>");
-//         if(alarmFlag){
-//           alarmFlag=false;
-//           String t="{ALM0:"+reminderA.toString()+"}";
-//
-//           for(int i=0;i<10;i++){
-//             Serial1.write('.');
-//             delay(50);
-//           }
-//           Serial1.write(t.c_str());
-//           reminderA=checkUpcomming(DateTime(0,0,0,rtc.hour(),rtc.minute(),(rtc.second()+1)));
-//           t="{UPC0:"+reminderA.toString()+"}";
-//
-//           for(int i=0;i<2;i++){
-//             Serial1.write('.');
-//             delay(50);
-//           }
-//           Serial1.write(t.c_str());
-//         }else{
-//           alarmFlag=true;
-//         }
-//       }
-//     }else if(!isModeA){
-//       // Output::print(" Upcomming--> ");
-//       // Output::print(reminderB.Upc.hour());
-//       // Output::print(":");
-//       // Output::print(reminderB.Upc.minute());
-//       // Output::print(" isModeB: ");
-//       // Output::println(isModeA);
-//
-//       if(DateTime(0,0,0,rtc.hour(),rtc.minute())==DateTime(0,0,0,reminderB.get_date_time().hour(),reminderB.get_date_time().minute())){
-//         Output::println("<<ALARMMMMMM>> ModeB");
-//         if(alarmFlag){
-//           alarmFlag=false;
-//           String t="{ALM1:"+reminderB.toString()+"}";
-//
-//           for(int i=0;i<10;i++){
-//             Serial1.write('.');
-//             delay(50);
-//           }
-//           Serial1.write(t.c_str());
-//           reminderB=checkUpcommingB(DateTime(0,0,0,rtc.hour(),rtc.minute(),(rtc.second()+1)));
-//           t="{UPC1:"+reminderB.toString()+"}";
-//
-//           for(int i=0;i<2;i++){
-//             Serial1.write('.');
-//             delay(50);
-//           }
-//           Serial1.write(t.c_str());
-//         }else{
-//           alarmFlag=true;
-//         }
-//       }
-//     }
-//   }
-// }
-

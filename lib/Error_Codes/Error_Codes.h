@@ -11,15 +11,19 @@ enum INTERNAL_ERROR_CODE:byte {
     OLED_ERROR        =    0b00000110,
     MDNS_ERROR        =    0b00000111,
     NTP_ERROR         =    0b00001000,
+    SERVER_ERROR      =    0b00001100,
 };
 
 class Error_Codes {
     byte total_active_errors_ = 0;
-    INTERNAL_ERROR_CODE error_codes[8]{};
+    constexpr static byte totalerrorcodes=9;
+    INTERNAL_ERROR_CODE error_codes[totalerrorcodes] = {};
 public:
     Error_Codes()=default;
     void add_error(INTERNAL_ERROR_CODE error_code);
     void remove_error(INTERNAL_ERROR_CODE error_code);
+    static String get_error_as_string(INTERNAL_ERROR_CODE error_code);
+
     [[nodiscard]] INTERNAL_ERROR_CODE get_error(byte index) const;
     [[nodiscard]] byte get_error_code(byte index) const;
     [[nodiscard]] bool check_if_error_exist(INTERNAL_ERROR_CODE error_code) const;

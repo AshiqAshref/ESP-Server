@@ -29,6 +29,7 @@ enum Command_enum:byte {
     DEACTIVATE_AP =     0b00000010,
     GET_NETWORK_INF =   0b00000011,
     DAYLIGHT_SAV =      0b00001011,
+    SERVER_IP =         0b00001101,
     COMMAND_FILTER =    0b00001111
 };
 

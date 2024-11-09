@@ -9,19 +9,25 @@
 
 class Network_communications {
     static void handle_client(WiFiClient client);
+    static bool server_conn_test_local();
+
 
 public:
     static void handle_network_comms();
 
+    static bool get_revision_number();
+    static bool get_reminder_B();
 
     static bool initializeWiFi();
     static bool initializeMDNS();
     static bool initializeNTP();
 
-
     static bool resolve_WIFI_CONN_ERROR();
     static bool resolve_MDNS_ERROR();
     static bool resolve_BAD_WIFI_CRED();
+
+    static bool handle_data();
+    static bool server_conn_test();
 
     static IPAddress setAccessPoint();
 
