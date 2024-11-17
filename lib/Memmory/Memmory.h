@@ -21,15 +21,17 @@ public:
     static bool initializeSDFS();
 
     static bool get_daylight_saving();
-    static void set_daylight_saving(bool dlt_sv);
+    static void save_daylight_saving(bool dlt_sv);
     static IPAddress get_server_ip();
-    static void set_server_ip(const IPAddress &server_ip);
+    static void save_server_ip(const IPAddress &server_ip);
     static unsigned long get_reminder_b_revision_no();
-    static void set_reminder_b_revision_no(unsigned long revision_no);
+    static void save_reminder_b_revision_no(unsigned long revision_no);
     static void save_wifi_cred(const String& ssid_, const String& pass_) ;
     static bool load_wifi_cred(String &WIFI_SSID, String &WIFI_PASS) ;
     static JsonDocument get_latest_Reminder(const String &time_string, JsonDocument &doc);
     static JsonDocument get_latest_Reminder(unsigned long unixTime, JsonDocument &doc);
+
+    static JsonDocument get_latest_Reminder(unsigned long unixTime);
     static JsonDocument get_latest_Reminder(const DateTime &t, JsonDocument &doc);
     static JsonDocument get_all_reminders_from_sd() ;
 

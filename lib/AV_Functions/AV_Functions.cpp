@@ -123,8 +123,12 @@ JsonDocument AV_Functions::unsimplify_Json(const JsonDocument &doc){
             reminder_doc["time"] = doc[i]["t"].as<String>();
         }else return empty_doc;
 
+        if(doc[i]["rv"].is<int>()) {
+            reminder_doc["rv"] = doc[i]["rv"].as<String>();
+        }else return empty_doc;
+
+        auto med_array = reminder_doc["medicines"].to<JsonArray>();
         if(doc[i]["m"].size()>0) {
-            auto med_array = reminder_doc["medicines"].to<JsonArray>();
             size_t med_array_size = doc[i]["m"].size();
             for(size_t j=0; j<med_array_size; j++){
                 JsonDocument med_doc;

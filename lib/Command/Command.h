@@ -3,10 +3,12 @@
 #include <Arduino.h>
 
 enum CommandStatus:byte {
-    IN_PROGRESS = 0b10101010,
-    FAILED = 0b01010101,
-    COMPLETED = 0b00111100,
+    IN_PROGRESS =           0b10101010,
+    FAILED =                0b01010101,
+    COMPLETED =             0b00111100,
+    COMPLETED_REFRESH =     0b10100101,
 };
+
 
 enum COMM_PROTOCOL:byte {
     SYN =             0b10000000,
@@ -24,12 +26,14 @@ enum COMM_PROTOCOL:byte {
 
 enum Command_enum:byte {
     GET_TIME =          0b00001000,
+    DAYLIGHT_SAV =      0b00001011,
+    SERVER_IP =         0b00001101,
     GET_REMINDER_B =    0b00001100,
+    REMINDERB_CH =      0b00001001,
+    REMINDERB_SND_LOG=  0b00000101,
     ACTIVATE_AP =       0b00000100,
     DEACTIVATE_AP =     0b00000010,
     GET_NETWORK_INF =   0b00000011,
-    DAYLIGHT_SAV =      0b00001011,
-    SERVER_IP =         0b00001101,
     COMMAND_FILTER =    0b00001111
 };
 

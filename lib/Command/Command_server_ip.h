@@ -4,6 +4,7 @@
 #define RES_GET true
 #define RES_SET false
 #include <Command.h>
+#include <Output.h>
 
 class Command_server_ip final : public Command {
     bool command_type_ = RES_GET;
@@ -25,10 +26,13 @@ public:
 
 
     void set_server_ip(const IPAddress &server_ip) {
+        Output::print("newip:");
+        Output::println(server_ip.toString(),false);
         this->server_ip_=server_ip;
         // this->server_ip_valid_=true;
     }
     IPAddress server_ip(){return this->server_ip_;}
+    String server_address() const {return "http://"+this->server_ip_.toString()+":8080/";}
 
     Command_enum command() override {return this->command_;}
     bool command_type() const {return this->command_type_;}

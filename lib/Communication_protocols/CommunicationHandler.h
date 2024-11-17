@@ -41,6 +41,15 @@ public:
     static bool deactivate_AP_request_handler();
     static bool deactivate_AP_response_handler();
 
+    static void send_command_reminderB_change();
+    static bool reminderB_change_response_handler();
+
+    static void send_command_reminderB_send_log();
+    static bool reminderB_send_log_response_handler();
+    static bool reminderB_send_log_request_handler();
+
+    static bool reminderB_change_request_handler();
+
 
 
 };

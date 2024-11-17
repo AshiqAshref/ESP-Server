@@ -328,7 +328,6 @@ COMM_PROTOCOL Communication_protocols::get_response(const Command_enum command, 
     return protocol;
 }
 
-
 void Communication_protocols::clear_receive_buffer() {
     while(Serial1.available()>0) Serial1.read();
 }
@@ -380,6 +379,8 @@ String Communication_protocols::command_as_String(const byte command) {
         return "DAYLIGHT_SAV";
     }if(command == SERVER_IP) {
         return "SERVER_IP";
+    }if(command == REMINDERB_CH) {
+        return "REMINDERB_CH";
     }
     return "unknown_command";
 }

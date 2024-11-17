@@ -3,11 +3,8 @@
 #include <Error_Codes.h>
 #include <RTClib.h>
 
-
-
 extern Adafruit_SSD1306 oled;
 extern Error_Codes error_codes;
-
 
 constexpr unsigned char icoWifi_Full [32]  = {
   0b00000111, 0b11100000,//     ######
@@ -206,7 +203,6 @@ const unsigned char *array_[] = {
   icoWifi_Full, //3
   WifiCross_RightDiag, //4
 };
-
 
 
 static constexpr byte line_size=6;

@@ -2,6 +2,7 @@
 
 #include <Command_deactivate_ap.h>
 #include <Command_get_network_inf.h>
+#include <Command_reminderB_change.h>
 #include <Command_server_ip.h>
 #include <HTTPClient.h>
 #include <Output.h>
@@ -13,14 +14,14 @@
 
 extern NTPClient timeClient;
 extern Error_Codes error_codes;
-extern AsyncWebServer ap_server;
-extern WiFiServer server;
+extern AsyncWebServer server;
 extern String WIFI_SSID;
 extern String WIFI_PASS;
 
 extern Command_deactivate_ap command_deactivate_ap;
 extern Command_get_network_inf command_get_network_inf;
 extern Command_server_ip command_server_ip;
+extern Command_reminderB_change command_reminderB_change;
 
 
 
@@ -34,56 +35,168 @@ bool tryNewPass=false;
 unsigned long last_reminder_b_revision_no=0;
 
 // constexpr unsigned int server_conn_test_interval=120000; TEST CODE
-constexpr unsigned int handle_data_interval=120000;
-unsigned long last_data_handle_millis=0;
+constexpr uint32_t handle_data_interval_onFail=7000;
+constexpr uint32_t handle_data_interval_onSucc=1200000;
+uint32_t handle_data_interval=handle_data_interval_onFail;
+uint32_t last_data_handle_millis=0;
+
+
+
 void Network_communications::handle_network_comms() {
-	WiFiClient client = server.available();
-	if(client) {handle_client(client);}
 
 	if(millis()-last_data_handle_millis>handle_data_interval) {
 		handle_data();
-		last_data_handle_millis=millis();
 	}
 }
 
 bool Network_communications::handle_data() {
 	const bool status = get_revision_number();
+	last_data_handle_millis=millis();
+
 	Output::draw_server_icon(status);
 	if(status) {
+		handle_data_interval=handle_data_interval_onSucc;
 		if(Memmory::get_reminder_b_revision_no()!=last_reminder_b_revision_no) {
 			if(get_reminder_B()) {
-				Memmory::set_reminder_b_revision_no(last_reminder_b_revision_no);
 				serializeJson(Memmory::get_all_reminders_from_sd(),Serial);
 				Serial.println();
 			}
+			command_reminderB_change.send_request();
 		}
+	}else
+		handle_data_interval=handle_data_interval_onFail;
+	return status;
+}
+
+
+bool Network_communications::get_revision_number() {
+	const String request_location= "modeB/revision_no";
+	const String server_address= command_server_ip.server_address()+request_location;
+
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
+		error_codes.add_error(SERVER_ERROR);
+		return false;
+	}
+
+	bool (*start_req)(HTTPClient&) = [](HTTPClient &http) {
+		http.addHeader("Content-Type", "application/json");
+		const int r_code = http.GET();
+		if (r_code == HTTP_CODE_OK) {
+
+			JsonDocument response_revision_no;
+			const DeserializationError error =  deserializeJson(response_revision_no, http.getString());
+			if(error) {
+				Serial.print("Json error: ");
+				Serial.println(error.c_str());
+				return false;
+			}
+			last_reminder_b_revision_no = response_revision_no["rno"].as<uint32_t>();
+			Serial.print("got revision_no :");
+			Serial.println(last_reminder_b_revision_no);
+			return true;
+		}
+		return false;
+	};
+
+	WiFiClient client_;
+	HTTPClient http_;
+
+	http_.begin(client_,   server_address); //HTTP
+	const bool status = start_req(http_);
+	client_.println("HTTP/1.1 200 OK");
+	http_.end();
+	client_.stop();
+	status?
+		error_codes.remove_error(SERVER_ERROR):
+		error_codes.add_error(SERVER_ERROR);
+	return status;
+}
+
+
+bool Network_communications::get_reminder_B() {
+	const String request_location = "modeB/esp/reminders/all";
+	const String server_address=  command_server_ip.server_address()+request_location;
+
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
+		error_codes.add_error(SERVER_ERROR);
+		return false;
+	}
+
+	bool (*start_req)(HTTPClient&) = [](HTTPClient &http) {
+		http.addHeader("Content-Type", "application/json");
+		const int r_code = http.GET();
+		Serial.print("HTTP_CODE: ");
+		Serial.println(r_code);
+		if (r_code == HTTP_CODE_OK) {
+			JsonDocument response_reminder_b;
+			const DeserializationError error = deserializeJson(response_reminder_b, http.getString());
+
+			if (error) {
+				Serial.print("Json error: ");
+				Serial.println(error.c_str());
+				return false;
+			}
+			last_reminder_b_revision_no = response_reminder_b["revNo"]["rno"].as<uint32_t>();
+			Memmory::write_reminders_to_SD(response_reminder_b["remB"]);
+			Memmory::save_reminder_b_revision_no(last_reminder_b_revision_no);
+
+			return true;
+		}
+		return false;
+	};
+
+	WiFiClient client_;
+	HTTPClient http_;
+	http_.begin(client_, server_address); //HTTP
+	const bool status = start_req(http_);
+	client_.println("HTTP/1.1 200 OK");
+	http_.end();
+	client_.stop();
+	status?
+		error_codes.remove_error(SERVER_ERROR):
+		error_codes.add_error(SERVER_ERROR);
+	return status;
+}
+
+bool testing_new_ip=false;
+constexpr byte new_ip_test_limit=20;
+byte current_new_ip_test_count = 0;
+bool Network_communications::server_conn_test() {
+	const auto status = server_conn_test_local();
+	Output::draw_server_icon(status);
+	if(status && testing_new_ip) {
+		Memmory::save_server_ip(command_server_ip.server_ip());
+		testing_new_ip=false;
+		current_new_ip_test_count=0;
+		return status;
+	}
+	if(testing_new_ip && current_new_ip_test_count<new_ip_test_limit) {
+		current_new_ip_test_count++;
+		return status;
+	}if(testing_new_ip) {
+		Output::println("Switching to old ip");
+		testing_new_ip=false;
+		current_new_ip_test_count=0;
+		command_server_ip.set_server_ip(Memmory::get_server_ip());
+		return status;
 	}
 	return status;
 }
 
-constexpr unsigned long server_conn_test_delay=3000;
-unsigned long last_server_conn_test_millis=0;
-bool Network_communications::server_conn_test() {
-	const auto status = server_conn_test_local();
-	Output::draw_server_icon(status);
-	return status;
-}
 
 bool Network_communications::server_conn_test_local() {
-	const String request_location= ":8080/modeB/test";
+	const String request_location= "modeB/test";
+	const String server_address=  command_server_ip.server_address()+request_location;
+
 	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
 		error_codes.add_error(SERVER_ERROR);
 		return false;
-	}if(millis()-last_server_conn_test_millis<server_conn_test_delay) {
-		return false;
-	}last_server_conn_test_millis=millis();
+	}
 
 	WiFiClient client;
 	HTTPClient http;
-	const String server_address= "http://"+ command_server_ip.server_ip().toString()+request_location;
 
 	http.begin(client,   server_address); //HTTP
-	http.addHeader("Content-Type", "application/json");
 	const int r_code = http.GET();
 	if (r_code == HTTP_CODE_OK) {
 		error_codes.remove_error(SERVER_ERROR);
@@ -94,39 +207,11 @@ bool Network_communications::server_conn_test_local() {
 }
 
 
-void Network_communications::handle_client(WiFiClient client) {
-	const String remoteIp=client.remoteIP().toString();
-	const IPAddress ip = IPAddress().fromString(remoteIp);
-
-	Output::print("RemoteIp..: ");
-	Output::println(remoteIp);
-	Output::print("RemotePort: ");
-	Output::println(client.remotePort());
-
-	while (client.connected()){
-		if (client.available()){
-			Output::print("Got SomeThing: ");
-			String line = client.readString();
-			Output::println(line);
-			client.println("HTTP/1.1 200 OK");
-			client.println();
-			client.println("DONE");
-			client.stop();
-			if(error_codes.check_if_error_exist(SERVER_ERROR)) {
-				command_server_ip.set_server_ip(ip);
-				if(server_conn_test()) {
-					Memmory::set_server_ip(ip);
-				}
-			}
-		}
-	}
-}
-
 bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 	WiFiClass::mode(WIFI_STA);
 	Output::draw_AP_active_icon(false);
-	ap_server.end();
-	server.begin();
+	initialize_self_server();
+
 
 	WiFi.begin(WIFI_SSID.c_str(), WIFI_PASS.c_str());
 	WiFi.disconnect();
@@ -158,15 +243,14 @@ bool Network_communications::initializeWiFi() {//......................INIT_WIFI
 		tryNewPass=false;
 	}
 	// command_get_network_inf.send_request();
-	ap_server.end();
-	server.begin();
 	return true;
 }
+
 
 bool Network_communications::initializeMDNS() {
 	if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
 		if(MDNS.begin("esp32")) {
-			Serial.print("MDNS :\"esp32\"");
+			Serial.println("MDNS :\"esp32\"");
 			error_codes.remove_error(MDNS_ERROR);
 			return true;
 		}
@@ -174,6 +258,7 @@ bool Network_communications::initializeMDNS() {
 	error_codes.add_error(MDNS_ERROR);
 	return false;
 }
+
 
 bool Network_communications::initializeNTP() {
 	if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)){
@@ -188,22 +273,57 @@ bool Network_communications::initializeNTP() {
 	return false;
 }
 
-IPAddress Network_communications::setAccessPoint(){//.....................SET_ACCESSPOINT
-	Output::println("Setting AP");
-	WiFi.softAP("WIFI-MANAGER", nullptr);
-	const IPAddress IP = WiFi.softAPIP();
-	Output::print("AP_IP: ");
-	Output::println(IP.toString(),false);
-	Output::draw_AP_active_icon();
-	Output::draw_Wifi_icon(4);
+void Network_communications::connection_end_protocol(const IPAddress &ip) {
+	Serial.print("SERVER REMOTE IP: ");
+	Serial.println(ip);
+	if(error_codes.check_if_error_exist(SERVER_ERROR)) {
+		Serial.print("Trying new IP: ");
+		Serial.println(ip);
+		command_server_ip.set_server_ip(ip);
+		testing_new_ip = true;
+		if(server_conn_test()) {
+			Memmory::save_server_ip(ip);
+		}
+	}
+}
 
-
-	ap_server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-			request->send(SD, "/data/wifimanager.html","text/html");
+void Network_communications::initialize_self_server() {
+	server.end();
+	server.on("/revision_change",HTTP_POST, [](AsyncWebServerRequest *request){}, nullptr, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+		Serial.println("REVISION CHANGE");
+		String body="";
+		for(size_t i=0; i<len; i++)body+=static_cast<char>(data[i]);
+		Serial.println();
+		Serial.print("Data : ");
+		Serial.println(body);
+		AsyncWebServerResponse *response = request->beginResponse(200);
+		response->addHeader("Connection","close");
+		request->send(response);
+		connection_end_protocol(request->client()->getRemoteAddress());
+		request->client()->close();
+		handle_data();
 	});
-	ap_server.serveStatic("/", SD, "/data/");
 
-	ap_server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
+	server.on("/",HTTP_GET, [](AsyncWebServerRequest *request) {
+		Serial.println("ESTABLISH CONN SERV");
+		AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", getWifiIP().toString());
+		response->addHeader("Connection","close");
+		request->send(response);
+		connection_end_protocol(request->client()->getRemoteAddress());
+
+	});
+	server.begin();
+}
+
+
+void Network_communications::initialize_AP_server() {
+	server.end();
+	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+				request->send(SD, "/data/wifimanager.html","text/html");
+		});
+	server.serveStatic("/", SD, "/data/");
+
+	server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
 		const size_t params = request->params();
 		for(size_t i=0;i<params;i++){
 			const AsyncWebParameter* p = request->getParam(i);
@@ -222,13 +342,23 @@ IPAddress Network_communications::setAccessPoint(){//.....................SET_AC
 			}
 		}
 		request->send(200, "text/plain", "Reconnecting WiFi");
-		ap_server.end();
+		server.end();
 		Output::draw_AP_active_icon(false);
 		command_deactivate_ap.send_request();
 		initializeWiFi();
 	});
-	server.end();
-	ap_server.begin();
+	server.begin();
+}
+
+IPAddress Network_communications::setAccessPoint(){//.....................SET_ACCESSPOINT
+	Output::println("Setting AP");
+	WiFi.softAP("WIFI-MANAGER", nullptr);
+	const IPAddress IP = WiFi.softAPIP();
+	Output::print("AP_IP: ");
+	Output::println(IP.toString(),false);
+	Output::draw_AP_active_icon();
+	Output::draw_Wifi_icon(4);
+	initialize_AP_server();
 	return IP;
 }
 
@@ -241,7 +371,6 @@ IPAddress Network_communications::getWifiIP() {
 bool Network_communications::wifiConnected() {
 	return WiFiClass::status() == WL_CONNECTED;
 }
-
 unsigned long previous_reconnect_millis=0;
 constexpr unsigned int reconnect_interval=60000;
 bool Network_communications::resolve_WIFI_CONN_ERROR() {
@@ -251,8 +380,7 @@ bool Network_communications::resolve_WIFI_CONN_ERROR() {
 		Output::println(WiFi.localIP().toString(), false);
 		Output::print("ID: ");
 		Output::println(WiFiClass::getHostname(), false);
-		server.end();
-		server.begin();
+		initialize_self_server();
 		if(tryNewPass) {
 			Memmory::save_wifi_cred(WIFI_SSID,WIFI_PASS);
 			Output::draw_AP_active_icon(false);
@@ -287,129 +415,39 @@ bool Network_communications::resolve_BAD_WIFI_CRED() {
 }
 
 
+void Network_communications::req_toString(AsyncWebServerRequest *request) {
+	Serial.println("PRINT_START");
+	Serial.println(request->methodToString());
 
+	Serial.print("----ARGS---- : ");
+	Serial.println(request->args());
+	for(size_t i=0;i<request->args();i++) Serial.println(request->arg(i));
 
-bool Network_communications::get_revision_number() {
-	const String request_location= ":8080/modeB/revision_no";
+	Serial.println();
+	Serial.print("----HEADERS---- : ");
+	Serial.println(request->headers());
+	for(size_t i=0;i<request->headers();i++) Serial.println(request->header(i));
 
-	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
-		error_codes.add_error(SERVER_ERROR);
-		return false;
+	Serial.println();
+	Serial.print("----HEADERS_PARAM---- : ");
+	Serial.println(request->headers());
+	for(size_t i=0;i<request->headers();i++) {
+		Serial.print(request->getHeader(i)->name());
+		Serial.print(" :: ");
+		Serial.println(request->getHeader(i)->value());
 	}
 
-	WiFiClient client;
-	HTTPClient http;
-
-	const String server_address= "http://"+ command_server_ip.server_ip().toString()+request_location;
-	// const String server_address= "http://host.wokwi.internal"+request_location;
-
-	http.begin(client,   server_address); //HTTP
-	http.addHeader("Content-Type", "application/json");
-	const int r_code = http.GET();
-	if (r_code == HTTP_CODE_OK) {
-		error_codes.remove_error(SERVER_ERROR);
-
-		JsonDocument response_revision_no;
-		const DeserializationError error =  deserializeJson(response_revision_no, http.getString());
-		if(error) {
-			Serial.print("Json error: ");
-			Serial.println(error.c_str());
-			error_codes.add_error(SERVER_ERROR);
-			return false;
-		}
-		last_reminder_b_revision_no = response_revision_no["revisionNo"].as<uint32_t>();
-		Serial.print("got revision_no :");
-		Serial.println(last_reminder_b_revision_no);
-		return true;
+	Serial.println();
+	Serial.print("----PARAMS---- : ");
+	Serial.println(request->params());
+	for(size_t i = 0;i<request->params();i++) {
+		Serial.print(request->getParam(i)->name());
+		Serial.print(" :: ");
+		Serial.print(request->getParam(i)->value());
+		Serial.print(" :: ");
+		Serial.println(request->getParam(i)->size());
 	}
-	error_codes.add_error(SERVER_ERROR);
-	return false;
+	Serial.println("PRINT_END");
+	Serial.println();
 }
 
-bool Network_communications::get_reminder_B() {
-	const String request_location = ":8080/modeB/esp/reminders/all";
-	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
-		error_codes.add_error(SERVER_ERROR);
-		return false;
-	}
-
-	WiFiClient client;
-	HTTPClient http;
-	const String server_address= "http://"+ command_server_ip.server_ip().toString()+request_location;
-	// const String server_address= "http://host.wokwi.internal"+request_location;
-	http.begin(client,   server_address); //HTTP
-	http.addHeader("Content-Type", "application/json");
-	const int r_code = http.GET();
-	Serial.print("HTTP_CODE: ");
-	Serial.println(r_code);
-	if (r_code == HTTP_CODE_OK) {
-		error_codes.remove_error(SERVER_ERROR);
-		JsonDocument response_reminder_b;
-		const DeserializationError error =  deserializeJson(response_reminder_b, http.getString());
-
-		if(error) {
-			Serial.print("Json error: ");
-			Serial.println(error.c_str());
-			error_codes.add_error(SERVER_ERROR);
-			return false;
-		}
-		Memmory::write_reminders_to_SD(response_reminder_b);
-		return true;
-	}
-	error_codes.add_error(SERVER_ERROR);
-	return false;
-}
-
-//
-// String Network_communications::handle_index(const String &remoteIp){//.........................HANDLE_INDEX
-// 	WiFiClient client;
-// 	HTTPClient http;
-// 	const String serverip=remoteIp+":8080/ESP_Manager/data";
-//
-// 	Output::print("HTTP begin...\n");
-// 	http.begin(client, "http://"+ serverip+ "?ESPGetAll"); //HTTP
-// 	http.addHeader("Content-Type", "text/plain");
-//
-// 	Output::print("HTTP POST...\n");
-// 	const int httpCode = http.POST("totalItems");
-// 	if ( httpCode > 0) {
-// 		Serial.printf("HTTP POST... code: %d\n", httpCode);
-// 		if (httpCode == HTTP_CODE_OK) {
-// 			const String& payload = http.getString();
-// 			String temp;
-// 			boolean aFlag=false;
-// 			boolean startFlag=true;
-//
-// 			for(unsigned int i=0; i<payload.length(); i++){
-// 				if(payload.charAt(i)=='{'){
-// 					aFlag=true;
-// 					temp=payload.charAt(i);
-// 				}else if(aFlag && payload.charAt(i)!='}' ){
-// 					temp+=payload.charAt(i);
-// 				}else if(aFlag && payload.charAt(i)=='}'){
-// 					aFlag=false;
-// 					temp+=payload.charAt(i);
-// 					temp+="\n";
-// 					Output::println(temp);
-//
-// 					if(startFlag){
-// 						auto const w="w";
-// 						Memmory::writeFile(dataPath, temp.c_str(), w);
-// 						startFlag=false;
-// 					}else{
-// 						auto const a="a";
-// 						Memmory::writeFile(dataPath, temp.c_str(), a);
-// 					}
-// 					temp="";
-// 					delay(100);
-// 				}
-// 			}
-// 			Output::println(payload);
-// 		}
-// 	}else{
-// 		Serial.printf("HTTP POST... failed, error: %s\n", HTTPClient::errorToString(httpCode).c_str());
-// 	}
-//
-// 	http.end();
-// 	return "OK";
-// }

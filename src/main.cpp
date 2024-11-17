@@ -14,6 +14,8 @@
 #include <Command_get_time.h>
 #include <Command_daylight_sav.h>
 #include <Command_server_ip.h>
+#include <Command_reminderB_change.h>
+
 #include <ReminderA.h>
 #include <ReminderB.h>
 #include <Error_Codes.h>
@@ -74,9 +76,13 @@ auto command_server_ip = Command_server_ip(
 		CommunicationHandler::server_ip_response_handler,
 		CommunicationHandler::server_ip_request_handler,
 		3000);
+auto command_reminderB_change = Command_reminderB_change(
+		CommunicationHandler::send_command_reminderB_change,
+		CommunicationHandler::reminderB_change_response_handler,
+		CommunicationHandler::reminderB_change_request_handler,
+		4000);
 
-auto ap_server = AsyncWebServer(80);
-auto server= WiFiServer(80);
+auto server= AsyncWebServer(80);
 auto ntpUDP=WiFiUDP();
 auto timeClient = NTPClient(ntpUDP,"time.windows.com",36000);
 auto oled=Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT,&Wire,-1);
@@ -91,9 +97,9 @@ void setup() {
 	if(!Network_communications::initializeWiFi()) {error_codes.add_error(WIFI_CONN_ERROR);}
 	if(!Network_communications::initializeMDNS()) {error_codes.add_error(MDNS_ERROR);}
 	if(!Network_communications::initializeNTP())  {error_codes.add_error(NTP_ERROR);}
+	command_server_ip.set_server_ip(Memmory::get_server_ip());
 	if(!Network_communications::server_conn_test()) {error_codes.add_error(SERVER_ERROR);}
 	if(!CommunicationHandler::initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
-	command_server_ip.set_server_ip(Memmory::get_server_ip());
 	Output::print_all_errors();
 }
 
@@ -132,6 +138,8 @@ void resolve_errors() {
 	}
 }
 
+constexpr unsigned long server_conn_test_delay=3000;
+unsigned long last_server_conn_test_millis=0;
 bool resolve_error(const INTERNAL_ERROR_CODE error_code) {
 	if(error_code==WIFI_CONN_ERROR) {
 		Output::draw_Wifi_icon(4);
@@ -153,6 +161,9 @@ bool resolve_error(const INTERNAL_ERROR_CODE error_code) {
 	}if(error_code==SOFT_SERIAL_ERROR) {
 		return CommunicationHandler::initializeHardwareSerial();
 	}if(error_code==SERVER_ERROR) {
+		if(millis()-last_server_conn_test_millis<server_conn_test_delay) {
+			return false;
+		}last_server_conn_test_millis=millis();
 		return Network_communications::server_conn_test();
 	}
 	return false;

@@ -8,6 +8,8 @@
 #include <Command_get_reminderB.h>
 #include <Command_get_time.h>
 #include <Command_server_ip.h>
+#include <Command_reminderB_change.h>
+
 
 #include <Memmory.h>
 #include <Network_communications.h>
@@ -27,11 +29,21 @@ extern Command_deactivate_ap command_deactivate_ap;
 extern Command_get_network_inf command_get_network_inf;
 extern Command_daylight_sav command_daylight_sav;
 extern Command_server_ip command_server_ip;
+extern Command_reminderB_change command_reminderB_change;
 
 constexpr byte max_retries=20;
 
-constexpr byte commands_size=7;
-Command *commands[commands_size]= { &command_get_reminder_b, &command_activate_AP,&command_deactivate_ap, &command_get_time, &command_get_network_inf, &command_daylight_sav, &command_server_ip}; // NOLINT(*-slicing)
+constexpr byte commands_size=8;
+Command *commands[commands_size]= {
+    &command_get_reminder_b,
+    &command_activate_AP,
+    &command_deactivate_ap,
+    &command_get_time,
+    &command_get_network_inf,
+    &command_daylight_sav,
+    &command_server_ip,
+    &command_reminderB_change
+}; // NOLINT(*-slicing)
 
 
 void CommunicationHandler::handle_communications() {
@@ -188,8 +200,8 @@ bool CommunicationHandler::reminder_b_request_handler() {
         send_status_UNKW_ERROR(command);
         return false;
     }
-    JsonDocument doc =  Memmory::get_all_reminders_from_sd();
-    doc = Memmory::get_latest_Reminder(forTime, doc);
+    JsonDocument doc = Memmory::get_latest_Reminder(forTime);
+    doc["rv"]=Memmory::get_reminder_b_revision_no();
     const COMM_PROTOCOL response_code =  sendJsonDocument(doc, command);
     if(response_code== SUCCESS) return true;
     send_status_UNKW_ERROR(command);
@@ -238,9 +250,9 @@ bool CommunicationHandler::daylight_sav_receive_dls() {
     if(!wait_for_response(command)) return false;
     const byte response = Serial1.read();
     if(response==153) {
-        Memmory::set_daylight_saving(true);
+        Memmory::save_daylight_saving(true);
     }else if(response==102) {
-        Memmory::set_daylight_saving(false);
+        Memmory::save_daylight_saving(false);
     }else {
         close_session(command);
         return false;
@@ -257,7 +269,7 @@ bool CommunicationHandler::daylight_sav_send_dls(const bool daylight_sav) {
     daylight_sav?
         Serial1.write(153):
         Serial1.write(102);
-    Memmory::set_daylight_saving(daylight_sav);
+    Memmory::save_daylight_saving(daylight_sav);
     if(get_response(command)!=SUCCESS) {close_session(command); return false;}
     Serial.print("SENT DLS SUCC VAL: ");
     Serial.println(daylight_sav);
@@ -309,7 +321,7 @@ bool CommunicationHandler::server_ip_receive_ip() {
         close_session(command);
         return false;
     }
-    Memmory::set_server_ip(ip);
+    Memmory::save_server_ip(ip);
     command_server_ip.set_server_ip(ip);
 
     send_status_SUCCESS(command);
@@ -320,7 +332,7 @@ bool CommunicationHandler::server_ip_receive_ip() {
 bool CommunicationHandler::server_ip_send_ip(const IPAddress &server_ip) {
     Serial.println("SRV_IP - SND");
     constexpr Command_enum command = SERVER_IP;
-    Memmory::set_server_ip(server_ip);
+    Memmory::save_server_ip(server_ip);
     if(send_response_READY_TO_SEND(command)!=READY_TO_RECV) {close_session(command); return false;}
     if(send_IP(server_ip,command)!=SUCCESS) {close_session(command); return false;}
     Serial.print("SENT SRV_IP SUCC VAL: ");
@@ -375,6 +387,47 @@ bool CommunicationHandler::initializeHardwareSerial(){
     error_codes.remove_error(SOFT_SERIAL_ERROR);
     return true;
 }
+
+bool CommunicationHandler::reminderB_change_request_handler() {
+    Serial.println("RMB_CNG - REQ_H");
+    constexpr Command_enum command = REMINDERB_CH;
+    if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
+
+    sendLong(Memmory::get_reminder_b_revision_no(),command);
+    if(get_response(command,false)!=SUCCESS){close_session(command); return false;}
+    return true;
+}
+
+void CommunicationHandler::send_command_reminderB_change() {
+    send_request_SYN(REMINDERB_CH);
+}
+
+bool CommunicationHandler::reminderB_change_response_handler() {
+    Serial.println("RMB_CNG RES_H");
+    constexpr Command_enum command=REMINDERB_CH;
+    send_response_ACK(command);
+
+    if(get_response(command)==SUCCESS)return true;
+    return false;
+
+}
+
+bool CommunicationHandler::reminderB_send_log_request_handler() {
+    Serial.println("RMB_LOG - REQ_H");
+    constexpr Command_enum command = REMINDERB_SND_LOG;
+    if(send_response_SYN_ACK(command)!=ACK) {
+        close_session(command);
+        return false;
+    }
+
+    JsonDocument reminder_log = receive_jsonDocument(command);
+
+    send_status_SUCCESS(command);
+    return true;
+}
+
+
+
 
 
 

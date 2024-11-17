@@ -14,11 +14,12 @@ JsonDocument Memmory::get_latest_Reminder(const String &time_string, JsonDocumen
 	return get_latest_Reminder(t, doc);
 }
 JsonDocument Memmory::get_latest_Reminder(const DateTime &t, JsonDocument &doc){
-	const String current_time_string = AV_Functions::beautifyTime(t.hour())+':'+AV_Functions::beautifyTime(t.minute());
+	const auto current_time = DateTime(0,0,0,t.hour(),t.minute(),0);
 	const size_t total_reminders = doc.size();
 	for(size_t i=0;i<total_reminders;i++){
 		auto reminder_time_string = doc[i]["t"].as<String>();
-		if(current_time_string<reminder_time_string){
+		const auto reminder_time = DateTime(0,0,0,AV_Functions::extractHour(reminder_time_string),AV_Functions::extractMinute(reminder_time_string),0);
+		if(current_time.unixtime()<reminder_time.unixtime()){
 			Serial.println(reminder_time_string);
 			return get_reminder(doc, i);
 		}
@@ -28,6 +29,11 @@ JsonDocument Memmory::get_latest_Reminder(const DateTime &t, JsonDocument &doc){
 }
 JsonDocument Memmory::get_latest_Reminder(const unsigned long unixTime, JsonDocument &doc){
 	const auto t = DateTime(unixTime);
+	return get_latest_Reminder(t, doc);
+}
+JsonDocument Memmory::get_latest_Reminder(const unsigned long unixTime){
+	const auto t = DateTime(unixTime);
+	JsonDocument doc = get_all_reminders_from_sd();
 	return get_latest_Reminder(t, doc);
 }
 JsonDocument Memmory::get_reminder(JsonDocument &json_array, const byte position) {
@@ -115,7 +121,7 @@ bool Memmory::get_daylight_saving() {
 	if(dlt_stat.equals("true"))return true;
 	return false;
 }
-void Memmory::set_daylight_saving(const bool dlt_sv) {
+void Memmory::save_daylight_saving(const bool dlt_sv) {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	String dlt_stat=readLine(daylight_saving_file,0);
 	dlt_stat.trim();
@@ -140,7 +146,7 @@ IPAddress Memmory::get_server_ip() {
 	ip.fromString(server_ip_string);
 	return ip;
 }
-void Memmory::set_server_ip(const IPAddress &server_ip) {
+void Memmory::save_server_ip(const IPAddress &server_ip) {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	String old_server_ip_string=readLine(server_ip_file,0);
 	old_server_ip_string.trim();
@@ -162,7 +168,7 @@ unsigned long Memmory::get_reminder_b_revision_no() {
 	revision_no= strtol(revision_no_string.c_str(), nullptr, 10);
 	return revision_no;
 }
-void Memmory::set_reminder_b_revision_no(const unsigned long revision_no) {
+void Memmory::save_reminder_b_revision_no(const unsigned long revision_no) {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	String old_remb_rev_no_str=readLine(reminder_b_revision_file,0);
 	old_remb_rev_no_str.trim();
