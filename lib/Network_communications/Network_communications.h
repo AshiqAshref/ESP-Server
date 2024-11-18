@@ -1,6 +1,7 @@
 #ifndef NETWORK_COMMUNICATIONS_H
 #define NETWORK_COMMUNICATIONS_H
 #include <ESPAsyncWebServer.h>
+#include <ArduinoJson.h>
 
 
 class Network_communications {
@@ -10,8 +11,8 @@ class Network_communications {
 public:
     static void handle_network_comms();
 
-    static bool get_revision_number();
-    static bool get_reminder_B();
+    static bool resource_get_revision_number(uint32_t &revision_no_);
+    static bool resource_get_reminder_B(uint32_t& revision_no_);
 
     static bool initializeWiFi();
     static bool initializeMDNS();
@@ -24,7 +25,9 @@ public:
     static bool resolve_MDNS_ERROR();
     static bool resolve_BAD_WIFI_CRED();
 
-    static bool handle_data();
+
+    static bool resource_post_remb_stat(JsonDocument remb_log_json);
+
     static bool server_conn_test();
 
     static IPAddress setAccessPoint();

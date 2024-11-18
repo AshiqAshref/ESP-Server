@@ -2,13 +2,15 @@
 
 #include <Command_deactivate_ap.h>
 #include <Command_get_network_inf.h>
-#include <Command_reminderB_change.h>
 #include <Command_server_ip.h>
 #include <HTTPClient.h>
 #include <Output.h>
 #include <Memmory.h>
 #include <ESPmDNS.h>
 #include <ESPAsyncWebServer.h>
+#include <Net_resource_get_reminder_B.h>
+#include <Net_resource_POST_remB_stat.h>
+#include <Net_resource_remb_auto_update.h>
 #include <SD.h>
 #include <NTPClient.h>
 
@@ -21,8 +23,6 @@ extern String WIFI_PASS;
 extern Command_deactivate_ap command_deactivate_ap;
 extern Command_get_network_inf command_get_network_inf;
 extern Command_server_ip command_server_ip;
-extern Command_reminderB_change command_reminderB_change;
-
 
 
 const String modeBdat = "/modeBdat.txt";
@@ -32,44 +32,87 @@ const String PARAM_INPUT_1 = "ssid";
 const String PARAM_INPUT_2 = "pass";
 
 bool tryNewPass=false;
-unsigned long last_reminder_b_revision_no=0;
 
-// constexpr unsigned int server_conn_test_interval=120000; TEST CODE
-constexpr uint32_t handle_data_interval_onFail=7000;
-constexpr uint32_t handle_data_interval_onSucc=1200000;
-uint32_t handle_data_interval=handle_data_interval_onFail;
-uint32_t last_data_handle_millis=0;
+
+extern Net_resource_post_remB_stat  net_resource_post_remB_stat;
+extern Net_resource_get_reminder_B net_resource_get_reminder_B;
+extern Net_resource_get_rev_no_B net_resource_get_rev_no_B;
+extern Net_resource_remb_auto_update net_resource_remb_auto_update;
+constexpr byte net_resource_size = 4;
+Net_resource *net_resource[net_resource_size] = {
+	&net_resource_post_remB_stat,
+	&net_resource_get_reminder_B,
+	&net_resource_get_rev_no_B,
+	&net_resource_remb_auto_update
+};
+
 
 
 
 void Network_communications::handle_network_comms() {
-
-	if(millis()-last_data_handle_millis>handle_data_interval) {
-		handle_data();
+	for(int i=0;i<net_resource_size;i++) {
+		if(
+			net_resource[i]->status()==NET_FAILED||
+			net_resource[i]->status()==NET_COMPLETED_REFRESH
+		){
+			if(millis()-net_resource[i]->last_millis>net_resource[i]->retry_interval_) {
+				net_resource[i]->start_request();
+			}
+		}
+	}
+	if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
+		timeClient.update();
 	}
 }
 
-bool Network_communications::handle_data() {
-	const bool status = get_revision_number();
-	last_data_handle_millis=millis();
 
-	Output::draw_server_icon(status);
-	if(status) {
-		handle_data_interval=handle_data_interval_onSucc;
-		if(Memmory::get_reminder_b_revision_no()!=last_reminder_b_revision_no) {
-			if(get_reminder_B()) {
-				serializeJson(Memmory::get_all_reminders_from_sd(),Serial);
-				Serial.println();
-			}
-			command_reminderB_change.send_request();
-		}
-	}else
-		handle_data_interval=handle_data_interval_onFail;
-	return status;
+bool Network_communications::resource_post_remb_stat(JsonDocument remb_log_json) {
+	const String request_location= "modeB/esp/remb_log";
+	const String server_address=  command_server_ip.server_address()+request_location;
+
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
+		error_codes.add_error(SERVER_ERROR);
+		return false;
+	}
+
+	WiFiClient client;
+	HTTPClient http;
+
+	http.begin(client,   server_address); //HTTP
+	const int r_code = http.GET();
+	if (r_code == HTTP_CODE_OK) {
+		error_codes.remove_error(SERVER_ERROR);
+		return true;
+	}
+	error_codes.add_error(SERVER_ERROR);
+	return false;
 }
 
 
-bool Network_communications::get_revision_number() {
+bool Network_communications::server_conn_test_local() {
+	const String request_location= "modeB/test";
+	const String server_address=  command_server_ip.server_address()+request_location;
+
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
+		error_codes.add_error(SERVER_ERROR);
+		return false;
+	}
+
+	WiFiClient client;
+	HTTPClient http;
+
+	http.begin(client,   server_address); //HTTP
+	const int r_code = http.GET();
+	if (r_code == HTTP_CODE_OK) {
+		error_codes.remove_error(SERVER_ERROR);
+		return true;
+	}
+	error_codes.add_error(SERVER_ERROR);
+	return false;
+}
+
+
+bool Network_communications::resource_get_revision_number(uint32_t &revision_no_) {
 	const String request_location= "modeB/revision_no";
 	const String server_address= command_server_ip.server_address()+request_location;
 
@@ -78,11 +121,10 @@ bool Network_communications::get_revision_number() {
 		return false;
 	}
 
-	bool (*start_req)(HTTPClient&) = [](HTTPClient &http) {
+	bool (*start_req)(HTTPClient&, uint32_t&) = [](HTTPClient &http, uint32_t &revision_no) {
 		http.addHeader("Content-Type", "application/json");
 		const int r_code = http.GET();
 		if (r_code == HTTP_CODE_OK) {
-
 			JsonDocument response_revision_no;
 			const DeserializationError error =  deserializeJson(response_revision_no, http.getString());
 			if(error) {
@@ -90,9 +132,8 @@ bool Network_communications::get_revision_number() {
 				Serial.println(error.c_str());
 				return false;
 			}
-			last_reminder_b_revision_no = response_revision_no["rno"].as<uint32_t>();
+			revision_no = response_revision_no["rno"].as<uint32_t>();
 			Serial.print("got revision_no :");
-			Serial.println(last_reminder_b_revision_no);
 			return true;
 		}
 		return false;
@@ -102,7 +143,7 @@ bool Network_communications::get_revision_number() {
 	HTTPClient http_;
 
 	http_.begin(client_,   server_address); //HTTP
-	const bool status = start_req(http_);
+	const bool status = start_req(http_, revision_no_);
 	client_.println("HTTP/1.1 200 OK");
 	http_.end();
 	client_.stop();
@@ -113,7 +154,7 @@ bool Network_communications::get_revision_number() {
 }
 
 
-bool Network_communications::get_reminder_B() {
+bool Network_communications::resource_get_reminder_B(uint32_t& revision_no_) {
 	const String request_location = "modeB/esp/reminders/all";
 	const String server_address=  command_server_ip.server_address()+request_location;
 
@@ -122,7 +163,7 @@ bool Network_communications::get_reminder_B() {
 		return false;
 	}
 
-	bool (*start_req)(HTTPClient&) = [](HTTPClient &http) {
+	bool (*start_req)(HTTPClient&, uint32_t&) = [](HTTPClient &http, uint32_t &revision_no) {
 		http.addHeader("Content-Type", "application/json");
 		const int r_code = http.GET();
 		Serial.print("HTTP_CODE: ");
@@ -130,16 +171,15 @@ bool Network_communications::get_reminder_B() {
 		if (r_code == HTTP_CODE_OK) {
 			JsonDocument response_reminder_b;
 			const DeserializationError error = deserializeJson(response_reminder_b, http.getString());
-
 			if (error) {
 				Serial.print("Json error: ");
 				Serial.println(error.c_str());
 				return false;
 			}
-			last_reminder_b_revision_no = response_reminder_b["revNo"]["rno"].as<uint32_t>();
+			revision_no = response_reminder_b["revNo"]["rno"].as<uint32_t>();
 			Memmory::write_reminders_to_SD(response_reminder_b["remB"]);
-			Memmory::save_reminder_b_revision_no(last_reminder_b_revision_no);
-
+			Memmory::save_reminder_b_revision_no(revision_no);
+			serializeJson(Memmory::get_all_reminders_from_sd(),Serial);
 			return true;
 		}
 		return false;
@@ -148,7 +188,7 @@ bool Network_communications::get_reminder_B() {
 	WiFiClient client_;
 	HTTPClient http_;
 	http_.begin(client_, server_address); //HTTP
-	const bool status = start_req(http_);
+	const bool status = start_req(http_, revision_no_);
 	client_.println("HTTP/1.1 200 OK");
 	http_.end();
 	client_.stop();
@@ -184,27 +224,6 @@ bool Network_communications::server_conn_test() {
 }
 
 
-bool Network_communications::server_conn_test_local() {
-	const String request_location= "modeB/test";
-	const String server_address=  command_server_ip.server_address()+request_location;
-
-	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
-		error_codes.add_error(SERVER_ERROR);
-		return false;
-	}
-
-	WiFiClient client;
-	HTTPClient http;
-
-	http.begin(client,   server_address); //HTTP
-	const int r_code = http.GET();
-	if (r_code == HTTP_CODE_OK) {
-		error_codes.remove_error(SERVER_ERROR);
-		return true;
-	}
-	error_codes.add_error(SERVER_ERROR);
-	return false;
-}
 
 
 bool Network_communications::initializeWiFi() {//......................INIT_WIFI
@@ -301,7 +320,7 @@ void Network_communications::initialize_self_server() {
 		request->send(response);
 		connection_end_protocol(request->client()->getRemoteAddress());
 		request->client()->close();
-		handle_data();
+		net_resource_remb_auto_update.start_request();
 	});
 
 	server.on("/",HTTP_GET, [](AsyncWebServerRequest *request) {

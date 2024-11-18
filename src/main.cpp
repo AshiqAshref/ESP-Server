@@ -15,6 +15,7 @@
 #include <Command_daylight_sav.h>
 #include <Command_server_ip.h>
 #include <Command_reminderB_change.h>
+#include <Command_reminderB_send_log.h>
 
 #include <ReminderA.h>
 #include <ReminderB.h>
@@ -24,6 +25,11 @@
 #include <Network_communications.h>
 #include <Output.h>
 #include <Communication_protocols.h>
+
+#include <Net_resource_get_reminder_B.h>
+#include <Net_resource_post_remB_stat.h>
+#include <Net_resource_remb_auto_update.h>
+#include <Net_resource_get_rev_no_B.h>
 
 
 auto reminderA = ReminderA();
@@ -38,25 +44,21 @@ constexpr byte SCREEN_WIDTH =128; // OLED display width, in pixels
 constexpr byte SCREEN_HEIGHT =64; // OLED display height, in pixels
 
 auto command_get_time = Command_get_time(
-		GET_TIME,
 		[]{},
 		[]{return true;},
 		CommunicationHandler::NTP_request_handler,
 		5000);
 auto command_get_reminder_b = Command_get_reminderB (
-		GET_REMINDER_B,
 		[]{},
 		[]{return true;},
 		CommunicationHandler::reminder_b_request_handler,
 		5000);
 auto command_activate_AP = Command_activate_AP (
-		ACTIVATE_AP,
 		[]{},
 		[]{return true;},
 		CommunicationHandler::activate_AP_request_handler,
 		5000);
 auto command_deactivate_ap = Command_deactivate_ap(
-		DEACTIVATE_AP,
 		CommunicationHandler::send_command_deactivate_ap,
 		CommunicationHandler::deactivate_AP_response_handler,
 		CommunicationHandler::deactivate_AP_request_handler,
@@ -81,6 +83,36 @@ auto command_reminderB_change = Command_reminderB_change(
 		CommunicationHandler::reminderB_change_response_handler,
 		CommunicationHandler::reminderB_change_request_handler,
 		4000);
+auto command_reminderB_send_log = Command_reminderB_send_log(
+		CommunicationHandler::send_command_reminderB_send_log,
+		CommunicationHandler::reminderB_send_log_response_handler,
+		CommunicationHandler::reminderB_send_log_request_handler,
+		4000);
+
+
+auto net_resource_post_remB_stat= Net_resource_post_remB_stat(
+	Network_communications::resource_post_remb_stat,
+	6000
+	);
+
+auto net_resource_get_rev_no_B = Net_resource_get_rev_no_B(
+	Network_communications::resource_get_revision_number,
+	6000
+);
+auto net_resource_get_reminder_B= Net_resource_get_reminder_B(
+	Network_communications::resource_get_reminder_B,
+	net_resource_get_rev_no_B,
+	command_reminderB_change,
+	6000
+	);
+auto net_resource_remb_auto_update = Net_resource_remb_auto_update(
+	net_resource_get_reminder_B,
+	net_resource_get_rev_no_B,
+	Memmory::get_reminder_b_revision_no,
+	5000,
+	120000
+);
+
 
 auto server= AsyncWebServer(80);
 auto ntpUDP=WiFiUDP();

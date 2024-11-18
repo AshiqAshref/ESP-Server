@@ -154,7 +154,7 @@ void Memmory::save_server_ip(const IPAddress &server_ip) {
 		writeFile(server_ip_file, server_ip.toString().c_str(), FILE_WRITE);
 }
 
-unsigned long Memmory::get_reminder_b_revision_no() {
+uint32_t Memmory::get_reminder_b_revision_no() {
 	unsigned long revision_no=0;
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return revision_no;
 	if(!SD.exists(reminder_b_revision_file)) {
@@ -168,7 +168,7 @@ unsigned long Memmory::get_reminder_b_revision_no() {
 	revision_no= strtol(revision_no_string.c_str(), nullptr, 10);
 	return revision_no;
 }
-void Memmory::save_reminder_b_revision_no(const unsigned long revision_no) {
+void Memmory::save_reminder_b_revision_no(const uint32_t revision_no) {
 	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
 	String old_remb_rev_no_str=readLine(reminder_b_revision_file,0);
 	old_remb_rev_no_str.trim();

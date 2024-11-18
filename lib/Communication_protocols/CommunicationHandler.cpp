@@ -9,10 +9,12 @@
 #include <Command_get_time.h>
 #include <Command_server_ip.h>
 #include <Command_reminderB_change.h>
+#include <Command_reminderB_send_log.h>
 
 
 #include <Memmory.h>
 #include <Network_communications.h>
+#include <Net_resource_post_remB_stat.h>
 #include <NTPClient.h>
 #include <Output.h>
 #include <WiFi.h>
@@ -30,10 +32,11 @@ extern Command_get_network_inf command_get_network_inf;
 extern Command_daylight_sav command_daylight_sav;
 extern Command_server_ip command_server_ip;
 extern Command_reminderB_change command_reminderB_change;
+extern Command_reminderB_send_log command_reminderB_send_log;
 
 constexpr byte max_retries=20;
 
-constexpr byte commands_size=8;
+constexpr byte commands_size=9;
 Command *commands[commands_size]= {
     &command_get_reminder_b,
     &command_activate_AP,
@@ -42,7 +45,8 @@ Command *commands[commands_size]= {
     &command_get_network_inf,
     &command_daylight_sav,
     &command_server_ip,
-    &command_reminderB_change
+    &command_reminderB_change,
+    &command_reminderB_send_log
 }; // NOLINT(*-slicing)
 
 
@@ -62,9 +66,6 @@ void CommunicationHandler::handle_communications() {
                 commands[i]->send_request();
             }
         }
-    }
-    if(!error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
-        timeClient.update();
     }
 }
 
@@ -409,9 +410,9 @@ bool CommunicationHandler::reminderB_change_response_handler() {
 
     if(get_response(command)==SUCCESS)return true;
     return false;
-
 }
 
+extern Net_resource_post_remB_stat net_resource_post_remB_stat;
 bool CommunicationHandler::reminderB_send_log_request_handler() {
     Serial.println("RMB_LOG - REQ_H");
     constexpr Command_enum command = REMINDERB_SND_LOG;
@@ -420,11 +421,29 @@ bool CommunicationHandler::reminderB_send_log_request_handler() {
         return false;
     }
 
-    JsonDocument reminder_log = receive_jsonDocument(command);
-
+    const JsonDocument reminder_log = receive_jsonDocument(command);
+    if(reminder_log.size()==0) {
+        close_session(command);
+        return false;
+    }
+    net_resource_post_remB_stat.start_request(reminder_log);
     send_status_SUCCESS(command);
     return true;
 }
+
+bool CommunicationHandler::reminderB_send_log_response_handler() {
+    Serial.println("RMB_LOG RES_H");
+    constexpr Command_enum command=REMINDERB_SND_LOG;
+    send_response_ACK(command);
+
+    if(get_response(command)==SUCCESS)return true;
+    return false;
+}
+
+void CommunicationHandler::send_command_reminderB_send_log() {
+    send_request_SYN(REMINDERB_SND_LOG);
+}
+
 
 
 

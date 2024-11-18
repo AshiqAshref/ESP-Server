@@ -381,6 +381,8 @@ String Communication_protocols::command_as_String(const byte command) {
         return "SERVER_IP";
     }if(command == REMINDERB_CH) {
         return "REMINDERB_CH";
+    }if(command == REMINDERB_SND_LOG) {
+        return "REMINDERB_SND_LOG";
     }
     return "unknown_command";
 }
