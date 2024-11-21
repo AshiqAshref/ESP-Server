@@ -192,10 +192,12 @@ COMM_PROTOCOL CommunicationHandler::sendTime() {
     return response_code;
 }
 
+
 bool CommunicationHandler::reminder_b_request_handler() {
     Serial.println("REMB - REQ_H");
     constexpr Command_enum command = GET_REMINDER_B;
     if(send_response_SYN_ACK(command)!=ACK) {close_session(command); return false;}
+
     const unsigned long forTime = receive_long(command);
     if(!forTime) {
         send_status_UNKW_ERROR(command);
@@ -398,11 +400,9 @@ bool CommunicationHandler::reminderB_change_request_handler() {
     if(get_response(command,false)!=SUCCESS){close_session(command); return false;}
     return true;
 }
-
 void CommunicationHandler::send_command_reminderB_change() {
     send_request_SYN(REMINDERB_CH);
 }
-
 bool CommunicationHandler::reminderB_change_response_handler() {
     Serial.println("RMB_CNG RES_H");
     constexpr Command_enum command=REMINDERB_CH;
@@ -430,7 +430,6 @@ bool CommunicationHandler::reminderB_send_log_request_handler() {
     send_status_SUCCESS(command);
     return true;
 }
-
 bool CommunicationHandler::reminderB_send_log_response_handler() {
     Serial.println("RMB_LOG RES_H");
     constexpr Command_enum command=REMINDERB_SND_LOG;
@@ -439,7 +438,6 @@ bool CommunicationHandler::reminderB_send_log_response_handler() {
     if(get_response(command)==SUCCESS)return true;
     return false;
 }
-
 void CommunicationHandler::send_command_reminderB_send_log() {
     send_request_SYN(REMINDERB_SND_LOG);
 }

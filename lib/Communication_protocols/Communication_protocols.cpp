@@ -41,14 +41,14 @@ COMM_PROTOCOL Communication_protocols::sendJsonDocument(const JsonDocument &doc,
 
         CrcWriter writer;
         serializeMsgPack(doc, writer);
-        response_code = sendLong(writer.hash(), GET_REMINDER_B);
+        response_code = sendLong(writer.hash(), command);
         if(response_code!=SUCCESS) return response_code;
 
         response_code = send_response_READY_TO_SEND(command,false);
         if(response_code!=READY_TO_RECV) return response_code;
         serializeMsgPack(doc,Serial1);
 
-        response_code=get_response(GET_REMINDER_B);
+        response_code=get_response(command);
         if(response_code != RETRY) return response_code;
         current_retries++;
     }

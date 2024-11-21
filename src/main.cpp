@@ -133,6 +133,8 @@ void setup() {
 	if(!Network_communications::server_conn_test()) {error_codes.add_error(SERVER_ERROR);}
 	if(!CommunicationHandler::initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
 	Output::print_all_errors();
+
+
 }
 
 void loop() {

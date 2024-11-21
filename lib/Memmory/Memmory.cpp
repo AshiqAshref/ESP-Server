@@ -10,15 +10,15 @@ extern Error_Codes error_codes;
 extern Output output;
 
 JsonDocument Memmory::get_latest_Reminder(const String &time_string, JsonDocument &doc){
-	const auto t = DateTime(0,0,0,AV_Functions::extractHour(time_string), AV_Functions::extractMinute(time_string),0);
+	const auto t = DateTime(2020,12,12,AV_Functions::extractHour(time_string), AV_Functions::extractMinute(time_string),0);
 	return get_latest_Reminder(t, doc);
 }
 JsonDocument Memmory::get_latest_Reminder(const DateTime &t, JsonDocument &doc){
-	const auto current_time = DateTime(0,0,0,t.hour(),t.minute(),0);
+	const auto current_time = DateTime(2020,12,12, t.hour(),t.minute(),0);
 	const size_t total_reminders = doc.size();
 	for(size_t i=0;i<total_reminders;i++){
 		auto reminder_time_string = doc[i]["t"].as<String>();
-		const auto reminder_time = DateTime(0,0,0,AV_Functions::extractHour(reminder_time_string),AV_Functions::extractMinute(reminder_time_string),0);
+		const auto reminder_time = DateTime(2020,12,12,AV_Functions::extractHour(reminder_time_string),AV_Functions::extractMinute(reminder_time_string),0);
 		if(current_time.unixtime()<reminder_time.unixtime()){
 			Serial.println(reminder_time_string);
 			return get_reminder(doc, i);
