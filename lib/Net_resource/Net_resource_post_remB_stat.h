@@ -18,7 +18,7 @@ public:
 
     void start_request(const JsonDocument &remb_log) {
         this->remb_log_json=remb_log;
-        Net_resource::start_request();
+        this->start_request();
 
     }
 
@@ -27,6 +27,7 @@ public:
             return this->set_status(NET_COMPLETED);
         return this->set_status(NET_FAILED);
     }
+
 };
 
 #endif //NET_RESOURCE_POST_REMB_STAT_H

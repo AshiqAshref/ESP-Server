@@ -1,3 +1,4 @@
+// ReSharper disable CppExpressionWithoutSideEffects
 #include "AV_Functions.h"
 #include <RTClib.h>
 
@@ -47,38 +48,100 @@ void AV_Functions::printlnBin(const byte aByte) {
     Serial.println();
 }
 
+JsonDocument AV_Functions::simplify_Json_local(const JsonDocument &doc) {
+    JsonDocument reminder_doc;
+    if(doc["timeId"].is<int>())
+        reminder_doc["ti"] =doc["timeId"];
+    else reminder_doc["ti"] =0;
 
-JsonDocument AV_Functions::simplify_Json(const JsonDocument &doc){
-    JsonDocument main_doc;
-    if(!isJsonValid(doc)) {
-        JsonDocument empty_doc;
-        return empty_doc;
-    }
+    if(doc["time"].is<String>())
+        reminder_doc["t"] = doc["time"].as<String>();
+    else reminder_doc["t"] = "";
 
-    auto main_doc_array= main_doc.to<JsonArray>();
-    size_t doc_array_size = doc.size();
-    for(size_t i=0; i<doc_array_size; i++){
-        JsonDocument reminder_doc;
-        reminder_doc["ti"] =doc[i]["timeId"];
-        reminder_doc["t"] = doc[i]["time"].as<String>();
-
-        auto med_array = reminder_doc["m"].to<JsonArray>();
-        size_t med_array_size = doc[i]["medicines"].size();
+    auto med_array = reminder_doc["m"].to<JsonArray>();
+    size_t med_array_size = doc["medicines"].size();
+    if(med_array_size>0) {
         for (size_t j = 0; j < med_array_size; j++) {
             JsonDocument med_doc;
-            med_doc["b"] = doc[i]["medicines"][j]["medBox"];
-            med_doc["d"] = doc[i]["medicines"][j]["dosage"];
-            med_doc["s"] = doc[i]["medicines"][j]["success"] ? 1 : 0;
+            if (doc["medicines"][j]["medBox"].is<int>())
+                med_doc["b"] = doc["medicines"][j]["medBox"];
+            else med_doc["b"] = 0;
+
+            if (doc["medicines"][j]["dosage"].is<int>())
+                med_doc["d"] = doc["medicines"][j]["dosage"];
+            else med_doc["d"] = 0;
+
+            if (doc["medicines"][j]["success"].is<bool>())
+                med_doc["s"] = doc["medicines"][j]["success"] ? 1 : 0;
+            else med_doc["s"] = 0;
+
             // ReSharper disable once CppExpressionWithoutSideEffects
             med_array.add(med_doc);
         }
+    }else {
+        med_array.add(JsonDocument());
+    }
+    return reminder_doc;
+}
 
-        // ReSharper disable once CppExpressionWithoutSideEffects
-        main_doc_array.add(reminder_doc);
+JsonDocument AV_Functions::simplify_Json(JsonDocument doc){
+    JsonDocument main_doc;
+    size_t doc_array_size = doc.size();
+    if(doc_array_size==0) return JsonDocument();
+    if(doc.as<JsonArray>().isNull()) {
+        main_doc = simplify_Json_local(doc);
+    }else {
+        auto main_doc_array= main_doc.to<JsonArray>();
+        for(size_t i=0; i<doc_array_size; i++){
+            JsonDocument reminder_doc=simplify_Json_local(doc[i]);
+            main_doc_array.add(reminder_doc);
+        }
     }
     return main_doc;
 }
 
+
+
+
+JsonDocument AV_Functions::unsimplify_Json_local(const JsonDocument &doc) {
+    JsonDocument reminder_doc;
+    if(doc["ti"].is<int>()) {
+        reminder_doc["timeId"] =doc["ti"];
+    }else reminder_doc["timeId"] = 0;
+
+    if(doc["t"].is<String>()) {
+        reminder_doc["time"] = doc["t"].as<String>();
+    }else reminder_doc["time"] = "";
+
+    if(doc["rv"].is<int>()) {
+        reminder_doc["rv"] = doc["rv"].as<uint32_t>();
+    }else reminder_doc["rv"] = 0;
+
+
+    const auto med_array = reminder_doc["medicines"].to<JsonArray>();
+    if(doc["m"].size()>0) {
+        const size_t med_array_size = doc["m"].size();
+        for(size_t j=0; j<med_array_size; j++){
+            JsonDocument med_doc;
+            if(doc["m"][j]["b"].is<int>()) {
+                med_doc["medBox"] = doc["m"][j]["b"];
+            }else med_doc["medBox"]= 0;
+
+            if(doc["m"][j]["d"].is<int>()) {
+                med_doc["dosage"] = doc["m"][j]["d"];
+            }else med_doc["dosage"] = 0;
+
+            if(doc["m"][j]["s"].is<int>()) {
+                med_doc["success"] = doc["m"][j]["s"]?true:false;
+            }else med_doc["success"]=false;
+            med_array.add(med_doc);
+        }
+    }else {
+        med_array.add(JsonDocument());
+    }
+    return reminder_doc;
+
+}
 
 bool AV_Functions::isJsonValid(const JsonDocument &doc){
     const size_t doc_array_size = doc.size();
@@ -105,48 +168,19 @@ bool AV_Functions::isJsonValid(const JsonDocument &doc){
     return true;
 }
 
-JsonDocument AV_Functions::unsimplify_Json(const JsonDocument &doc){
+JsonDocument AV_Functions::unsimplify_Json(JsonDocument doc){
     JsonDocument main_doc;
-    JsonDocument empty_doc;
+    const size_t doc_array_size = doc.size();
+    if(doc_array_size==0) return JsonDocument();
 
-    auto main_doc_array= main_doc.to<JsonArray>();
-    size_t doc_array_size = doc.size();
-    if(doc_array_size==0)
-        return empty_doc;
-    for(size_t i=0; i<doc_array_size; i++){
-        JsonDocument reminder_doc;
-        if(doc[i]["ti"].is<int>()) {
-            reminder_doc["timeId"] =doc[i]["ti"];
-        }else return empty_doc;
-
-        if(doc[i]["t"].is<String>()) {
-            reminder_doc["time"] = doc[i]["t"].as<String>();
-        }else return empty_doc;
-
-        if(doc[i]["rv"].is<int>()) {
-            reminder_doc["rv"] = doc[i]["rv"].as<String>();
-        }else return empty_doc;
-
-        auto med_array = reminder_doc["medicines"].to<JsonArray>();
-        if(doc[i]["m"].size()>0) {
-            size_t med_array_size = doc[i]["m"].size();
-            for(size_t j=0; j<med_array_size; j++){
-                JsonDocument med_doc;
-                if(doc[i]["m"][j]["b"].is<int>()) {
-                    med_doc["medBox"] = doc[i]["m"][j]["b"];
-                }else return empty_doc;
-                if(doc[i]["m"][j]["d"].is<int>()) {
-                    med_doc["dosage"] = doc[i]["m"][j]["d"];
-                }else return empty_doc;
-                if(doc[i]["m"][j]["s"].is<int>()) {
-                    med_doc["success"] = doc[i]["m"][j]["s"]?true:false;
-                }else return empty_doc;
-                // ReSharper disable once CppExpressionWithoutSideEffects
-                med_array.add(med_doc);
-            }
-        }else return empty_doc;
-        // ReSharper disable once CppExpressionWithoutSideEffects
-        main_doc_array.add(reminder_doc);
+    if(doc.as<JsonArray>().isNull()) {
+        main_doc = unsimplify_Json_local(doc);
+    }else {
+        const auto main_doc_array= main_doc.to<JsonArray>();
+        for(size_t i=0; i<doc_array_size; i++){
+            JsonDocument reminder_doc = unsimplify_Json_local(doc[i]);
+            main_doc_array.add(reminder_doc);
+        }
     }
     return main_doc;
 }

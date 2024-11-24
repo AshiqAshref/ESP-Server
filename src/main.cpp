@@ -90,6 +90,8 @@ auto command_reminderB_send_log = Command_reminderB_send_log(
 		4000);
 
 
+
+
 auto net_resource_post_remB_stat= Net_resource_post_remB_stat(
 	Network_communications::resource_post_remb_stat,
 	6000

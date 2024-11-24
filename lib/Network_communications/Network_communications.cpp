@@ -1,5 +1,6 @@
 #include "Network_communications.h"
 
+#include <AV_Functions.h>
 #include <Command_deactivate_ap.h>
 #include <Command_get_network_inf.h>
 #include <Command_server_ip.h>
@@ -23,6 +24,8 @@ extern String WIFI_PASS;
 extern Command_deactivate_ap command_deactivate_ap;
 extern Command_get_network_inf command_get_network_inf;
 extern Command_server_ip command_server_ip;
+extern Command_reminderB_change command_reminderB_change;
+
 
 
 const String modeBdat = "/modeBdat.txt";
@@ -69,17 +72,22 @@ void Network_communications::handle_network_comms() {
 bool Network_communications::resource_post_remb_stat(JsonDocument remb_log_json) {
 	const String request_location= "modeB/esp/remb_log";
 	const String server_address=  command_server_ip.server_address()+request_location;
+	// const String server_address= "http://host.wokwi.internal"+request_location;
 
 	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
 		error_codes.add_error(SERVER_ERROR);
 		return false;
 	}
 
+	remb_log_json=AV_Functions::unsimplify_Json(remb_log_json);
+	String payload;
+	serializeJson(remb_log_json,payload);
+
 	WiFiClient client;
 	HTTPClient http;
-
 	http.begin(client,   server_address); //HTTP
-	const int r_code = http.GET();
+	http.addHeader("Content-Type","application/json");
+	const int r_code = http.POST(payload);
 	if (r_code == HTTP_CODE_OK) {
 		error_codes.remove_error(SERVER_ERROR);
 		return true;
@@ -179,6 +187,7 @@ bool Network_communications::resource_get_reminder_B(uint32_t& revision_no_) {
 			revision_no = response_reminder_b["revNo"]["rno"].as<uint32_t>();
 			Memmory::write_reminders_to_SD(response_reminder_b["remB"]);
 			Memmory::save_reminder_b_revision_no(revision_no);
+			command_reminderB_change.send_request();
 			serializeJson(Memmory::get_all_reminders_from_sd(),Serial);
 			return true;
 		}
