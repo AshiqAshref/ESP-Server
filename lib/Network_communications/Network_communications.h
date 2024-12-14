@@ -27,6 +27,7 @@ public:
 
 
     static bool resource_post_remb_stat(JsonDocument remb_log_json);
+    static bool resource_post_box_inf(JsonDocument box_inf_json);
 
     static bool server_conn_test();
 

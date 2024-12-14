@@ -4,6 +4,7 @@
 #include <Command_activate_AP.h>
 #include <Command_daylight_sav.h>
 #include <Command_deactivate_ap.h>
+#include <Command_get_box_inf.h>
 #include <Command_get_network_inf.h>
 #include <Command_get_reminderB.h>
 #include <Command_get_time.h>
@@ -33,10 +34,12 @@ extern Command_daylight_sav command_daylight_sav;
 extern Command_server_ip command_server_ip;
 extern Command_reminderB_change command_reminderB_change;
 extern Command_reminderB_send_log command_reminderB_send_log;
+extern Command_get_box_inf command_get_box_inf;
+
 
 constexpr byte max_retries=20;
 
-constexpr byte commands_size=9;
+constexpr byte commands_size=10;
 Command *commands[commands_size]= {
     &command_get_reminder_b,
     &command_activate_AP,
@@ -46,7 +49,8 @@ Command *commands[commands_size]= {
     &command_daylight_sav,
     &command_server_ip,
     &command_reminderB_change,
-    &command_reminderB_send_log
+    &command_reminderB_send_log,
+    &command_get_box_inf
 }; // NOLINT(*-slicing)
 
 
@@ -426,7 +430,7 @@ bool CommunicationHandler::reminderB_send_log_request_handler() {
         close_session(command);
         return false;
     }
-    net_resource_post_remB_stat.start_request(reminder_log);
+    on_reminderb_log_recive(reminder_log);
     send_status_SUCCESS(command);
     return true;
 }
@@ -440,6 +444,64 @@ bool CommunicationHandler::reminderB_send_log_response_handler() {
 }
 void CommunicationHandler::send_command_reminderB_send_log() {
     send_request_SYN(REMINDERB_SND_LOG);
+}
+void CommunicationHandler::on_reminderb_log_recive(JsonDocument log_doc) {
+    for (int i = 0; i < log_doc["m"].size() ; i++) {
+        if(log_doc["m"][i]["b"].is<uint8_t>()) {
+            uint8_t box_no = log_doc["m"][i]["b"].is<uint8_t>();
+            if(Memmory::check_box_info_exist(box_no)) {
+                if(log_doc["m"][i]["a"].is<uint16_t>()) {
+                    Memmory::update_box_info_amount_in_SD(box_no,log_doc["m"][i]["a"].as<uint16_t>());
+                }
+            }
+        }
+
+    }
+    net_resource_post_remB_stat.start_request(log_doc);
+
+}
+
+
+bool CommunicationHandler::get_box_inf_request_handler() {
+    Serial.println("GET_BOX - REQ_H");
+    constexpr Command_enum command = GET_BOX_INF;
+    if(send_response_SYN_ACK(command)!=ACK) {
+        close_session(command);
+        return false;
+    }
+    JsonDocument box_doc = Memmory::get_all_boxes_info_from_sd();
+    if(box_doc.size()==0) close_session(command);
+    Serial.println();
+    Serial.print("sending_box_json: ");
+    serializeJson(box_doc,Serial);
+    Serial.println();
+    Serial.println();
+
+    if(sendJsonDocument(box_doc,command)!=SUCCESS){close_session(command);return false;}
+    send_status_SUCCESS(command);
+    return true;
+}
+bool CommunicationHandler::get_box_inf_response_handler() {
+    Serial.println("GET_BOX RES_H");
+    constexpr Command_enum command = GET_BOX_INF;
+    send_response_ACK(command);
+
+    const JsonDocument box_doc = receive_jsonDocument(command);
+    Serial.println();
+    Serial.print("recved_box_json: ");
+    serializeJson(box_doc,Serial);
+    Serial.println();
+    Serial.println();
+
+    if(box_doc.size()==0){ close_session(command);return false;}
+    send_status_SUCCESS(command);
+    return true;
+}
+
+
+
+void CommunicationHandler::send_command_get_box_inf() {
+    send_request_SYN(GET_BOX_INF);
 }
 
 

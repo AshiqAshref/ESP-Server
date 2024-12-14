@@ -13,6 +13,7 @@
 #include <Command_get_reminderB.h>
 #include <Command_get_time.h>
 #include <Command_daylight_sav.h>
+#include <Command_get_box_inf.h>
 #include <Command_server_ip.h>
 #include <Command_reminderB_change.h>
 #include <Command_reminderB_send_log.h>
@@ -30,6 +31,7 @@
 #include <Net_resource_post_remB_stat.h>
 #include <Net_resource_remb_auto_update.h>
 #include <Net_resource_get_rev_no_B.h>
+#include <Net_resource_post_box_inf.h>
 
 
 auto reminderA = ReminderA();
@@ -88,32 +90,35 @@ auto command_reminderB_send_log = Command_reminderB_send_log(
 		CommunicationHandler::reminderB_send_log_response_handler,
 		CommunicationHandler::reminderB_send_log_request_handler,
 		4000);
+auto command_get_box_inf = Command_get_box_inf(
+		CommunicationHandler::send_command_get_box_inf,
+		CommunicationHandler::get_box_inf_response_handler,
+		CommunicationHandler::get_box_inf_request_handler,
+		4000);
 
 
 
 
 auto net_resource_post_remB_stat= Net_resource_post_remB_stat(
 	Network_communications::resource_post_remb_stat,
-	6000
-	);
-
+	6000);
+auto net_resource_post_box_inf= Net_resource_post_box_inf(
+	Network_communications::resource_post_box_inf,
+	6000);
 auto net_resource_get_rev_no_B = Net_resource_get_rev_no_B(
 	Network_communications::resource_get_revision_number,
-	6000
-);
+	6000);
 auto net_resource_get_reminder_B= Net_resource_get_reminder_B(
 	Network_communications::resource_get_reminder_B,
 	net_resource_get_rev_no_B,
 	command_reminderB_change,
-	6000
-	);
+	6000);
 auto net_resource_remb_auto_update = Net_resource_remb_auto_update(
 	net_resource_get_reminder_B,
 	net_resource_get_rev_no_B,
 	Memmory::get_reminder_b_revision_no,
 	5000,
-	120000
-);
+	120000);
 
 
 auto server= AsyncWebServer(80);
@@ -136,7 +141,7 @@ void setup() {
 	if(!CommunicationHandler::initializeHardwareSerial()) {error_codes.add_error(SOFT_SERIAL_ERROR);}
 	Output::print_all_errors();
 
-
+	net_resource_get_reminder_B.start_request();
 }
 
 void loop() {

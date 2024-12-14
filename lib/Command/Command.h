@@ -25,16 +25,21 @@ enum COMM_PROTOCOL:byte {
 };
 
 enum Command_enum:byte {
-    GET_TIME =          0b00001000,
-    DAYLIGHT_SAV =      0b00001011,
-    SERVER_IP =         0b00001101,
-    GET_REMINDER_B =    0b00001100,
-    REMINDERB_CH =      0b00001001,
-    REMINDERB_SND_LOG=  0b00000101,
-    ACTIVATE_AP =       0b00000100,
-    DEACTIVATE_AP =     0b00000010,
+    GET_TIME =          0b00000010,
     GET_NETWORK_INF =   0b00000011,
+    ACTIVATE_AP =       0b00000100,
+    DEACTIVATE_AP=      0b00000101,
+    GET_BOX_INF =       0b00000110,
+    REMINDERB_SND_LOG=  0b00001000,
+    REMINDERB_CH =      0b00001001,
+    GET_REMINDER_B =    0b00001011,
+    DAYLIGHT_SAV =      0b00001100,
+    SERVER_IP =         0b00001101,
     COMMAND_FILTER =    0b00001111
+    // 0b00000001,
+    // 0b00000111,
+    // 0b00001010,
+    // 0b00001110,
 };
 
 class Command {

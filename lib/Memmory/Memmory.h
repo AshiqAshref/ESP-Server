@@ -12,12 +12,16 @@ const String reminderBfile="/ReminderB.dat";
 const String daylight_saving_file="/DLT_SV.dat";
 const String server_ip_file="/SRV_IP.dat";
 const String reminder_b_revision_file="/B_REV.dat";
+const String box_info_directory="/BOX_INF";
+const String box_info_file=box_info_directory+"/BOX_";
+const String log_send_to_server_file= "/BOXtoSRV.dat";
+
 
 class Memmory {
 static JsonDocument get_reminder(JsonDocument &json_array, byte position);
 
 public:
-    explicit Memmory();
+    explicit Memmory()=default;
     static bool initializeSDFS();
 
     static bool get_daylight_saving();
@@ -40,8 +44,22 @@ public:
     static String readLine(File file);
     static String readLine(File file, byte line_no);
     static String readLine(const String& path, byte line_no);
-    static void writeFile(const String &path, const char *message, const char *mode);
+    static bool writeFile(const String &path, const char *message, const char *mode);
     static bool write_reminders_to_SD(const JsonDocument &reminders_json);
+    static bool write_boxes_info_to_SD(const JsonDocument &box_json);
+    static bool write_box_info_to_SD(JsonDocument &box_json);
+    static bool update_box_info_amount_in_SD(byte boxNo, uint16_t new_amount);
+    static bool check_box_info_exist(byte boxNo);
+
+    static bool save_log_sent_to_serv(bool status);
+    static bool load_log_sent_to_serv_status();
+
+    static JsonDocument get_all_boxes_info_from_sd();
+    static JsonDocument get_box_info_from_sd(byte boxNo);
+
+
+
+
     static void sd_print_all_files(const String& path);
 
 

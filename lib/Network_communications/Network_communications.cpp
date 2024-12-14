@@ -10,6 +10,7 @@
 #include <ESPmDNS.h>
 #include <ESPAsyncWebServer.h>
 #include <Net_resource_get_reminder_B.h>
+#include <Net_resource_post_box_inf.h>
 #include <Net_resource_POST_remB_stat.h>
 #include <Net_resource_remb_auto_update.h>
 #include <SD.h>
@@ -41,16 +42,15 @@ extern Net_resource_post_remB_stat  net_resource_post_remB_stat;
 extern Net_resource_get_reminder_B net_resource_get_reminder_B;
 extern Net_resource_get_rev_no_B net_resource_get_rev_no_B;
 extern Net_resource_remb_auto_update net_resource_remb_auto_update;
-constexpr byte net_resource_size = 4;
+extern Net_resource_post_box_inf net_resource_post_box_inf;
+constexpr byte net_resource_size = 5;
 Net_resource *net_resource[net_resource_size] = {
 	&net_resource_post_remB_stat,
 	&net_resource_get_reminder_B,
 	&net_resource_get_rev_no_B,
-	&net_resource_remb_auto_update
+	&net_resource_remb_auto_update,
+	&net_resource_post_box_inf
 };
-
-
-
 
 void Network_communications::handle_network_comms() {
 	for(int i=0;i<net_resource_size;i++) {
@@ -68,11 +68,9 @@ void Network_communications::handle_network_comms() {
 	}
 }
 
-
 bool Network_communications::resource_post_remb_stat(JsonDocument remb_log_json) {
 	const String request_location= "modeB/esp/remb_log";
 	const String server_address=  command_server_ip.server_address()+request_location;
-	// const String server_address= "http://host.wokwi.internal"+request_location;
 
 	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
 		error_codes.add_error(SERVER_ERROR);
@@ -81,7 +79,11 @@ bool Network_communications::resource_post_remb_stat(JsonDocument remb_log_json)
 
 	remb_log_json=AV_Functions::unsimplify_Json(remb_log_json);
 	String payload;
+	Serial.println("SENDING_LOG_JSON: ");
 	serializeJson(remb_log_json,payload);
+	remb_log_json.clear();
+	Serial.println();
+	Serial.println(payload);
 
 	WiFiClient client;
 	HTTPClient http;
@@ -90,6 +92,44 @@ bool Network_communications::resource_post_remb_stat(JsonDocument remb_log_json)
 	const int r_code = http.POST(payload);
 	if (r_code == HTTP_CODE_OK) {
 		error_codes.remove_error(SERVER_ERROR);
+		Memmory::save_log_sent_to_serv(true);
+		return true;
+	}
+	error_codes.add_error(SERVER_ERROR);
+	return false;
+}
+
+bool Network_communications::resource_post_box_inf(JsonDocument box_inf_json) {
+	const String request_location= "modeB/esp/box_inf";
+	const String server_address=  command_server_ip.server_address()+request_location;
+
+	if(error_codes.check_if_error_exist(WIFI_CONN_ERROR)) {
+		error_codes.add_error(SERVER_ERROR);
+		return false;
+	}
+
+	if(Memmory::load_log_sent_to_serv_status()) return true;
+	if(box_inf_json.size()==0) {
+		box_inf_json = Memmory::get_all_boxes_info_from_sd();
+		box_inf_json = AV_Functions::unsimplify_box_Json(box_inf_json);
+	}
+
+	box_inf_json=AV_Functions::unsimplify_box_Json(box_inf_json);
+	String payload;
+	Serial.println("SENDING_BOX_INF_JSON: ");
+	serializeJson(box_inf_json,payload);
+	box_inf_json.clear();
+	Serial.println();
+	Serial.println(payload);
+
+	WiFiClient client;
+	HTTPClient http;
+	http.begin(client,   server_address); //HTTP
+	http.addHeader("Content-Type","application/json");
+	const int r_code = http.POST(payload);
+	if (r_code == HTTP_CODE_OK) {
+		error_codes.remove_error(SERVER_ERROR);
+		Memmory::save_log_sent_to_serv(true);
 		return true;
 	}
 	error_codes.add_error(SERVER_ERROR);
@@ -186,7 +226,17 @@ bool Network_communications::resource_get_reminder_B(uint32_t& revision_no_) {
 			}
 			revision_no = response_reminder_b["revNo"]["rno"].as<uint32_t>();
 			Memmory::write_reminders_to_SD(response_reminder_b["remB"]);
+			Serial.println("GOT FROM SERV BOXINF:");
+			serializeJson(response_reminder_b["boxInf"], Serial);
+			Serial.println();
+			if(Memmory::load_log_sent_to_serv_status())
+				Memmory::write_boxes_info_to_SD(response_reminder_b["boxInf"]);
+			else {
+				net_resource_post_box_inf.start_request();
+			}
 			Memmory::save_reminder_b_revision_no(revision_no);
+			response_reminder_b.clear();
+
 			command_reminderB_change.send_request();
 			serializeJson(Memmory::get_all_reminders_from_sd(),Serial);
 			return true;

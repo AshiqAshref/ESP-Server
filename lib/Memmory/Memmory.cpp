@@ -2,12 +2,14 @@
 
 #include <AV_Functions.h>
 #include <Error_Codes.h>
+#include <Net_resource_get_reminder_B.h>
 #include <SD.h>
 #include <Output.h>
 #include <StreamUtils.h>
 
 extern Error_Codes error_codes;
 extern Output output;
+extern Net_resource_get_reminder_B net_resource_get_reminder_B;
 
 JsonDocument Memmory::get_latest_Reminder(const String &time_string, JsonDocument &doc){
 	const auto t = DateTime(2020,12,12,AV_Functions::extractHour(time_string), AV_Functions::extractMinute(time_string),0);
@@ -91,20 +93,172 @@ bool Memmory::write_reminders_to_SD(const JsonDocument &reminders_json){
 	file.close();
 	return true;
 }
+bool Memmory::write_boxes_info_to_SD(const JsonDocument &box_json){
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
+	JsonDocument doc = AV_Functions::simplify_box_Json(box_json);
+	if(doc.size()==0) return false;
+	if(doc.as<JsonArray>().isNull()) return false;
+	if(SD.exists(box_info_directory))
+		SD.rmdir(box_info_directory);
+	SD.mkdir(box_info_directory);
 
-void Memmory::writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
-	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return;
-	Output::print("Writing file: "+ path);
-	File file = SD.open(path, mode);
-	if(!file){
-		Output::println("- failed to open file for writing");
+	for(size_t i=0; i<doc.size();i++) {
+		byte box_no;
+		if (doc[i]["b"].is<uint8_t>()) {
+			box_no = doc[i]["b"].as<uint8_t>();
+			if (box_no<1) continue;
+		}else continue;
+
+		if(check_box_info_exist(box_no)) {
+			if(AV_Functions::check_box_json_equals(get_box_info_from_sd(box_no),doc[i])) continue;
+		}
+
+		String file_name = box_info_file+static_cast<String>(box_no)+".dat";
+		File file = SD.open(file_name,FILE_WRITE);
+		Serial.println("WRITING TO: "+file_name);
+		if(file){
+			serializeMsgPack(doc[i], file);
+			file.flush();
+			Serial.println("write_succ");
+		}else {
+			Serial.println("write_fail");
+		}
+		file.flush();
+		file.close();
 	}
-	if(file.print(message)){
-		Output::println("- file written");
-	} else {
-		Output::println("- write failed");
+	return true;
+}
+bool Memmory::write_box_info_to_SD(JsonDocument &box_json) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
+	if(box_json.size()==0) return false;
+	if(!box_json.as<JsonArray>().isNull()) return false;
+	if(!SD.exists(box_info_directory)) SD.mkdir(box_info_directory);
+
+	if(box_json["b"].is<uint8_t>()) {
+		if(AV_Functions::check_box_json_equals(get_box_info_from_sd(box_json["b"].is<uint8_t>()),box_json)) return true;
+		const String file_name = box_info_file+static_cast<String>(box_json["b"].as<uint8_t>())+".dat";
+		File file = SD.open(file_name,FILE_WRITE);
+		if(file){
+			serializeMsgPack(box_json, file);
+			file.flush();
+		}else return false;
+		file.close();
+	}else return false;
+	return true;
+}
+
+bool Memmory::update_box_info_amount_in_SD(const byte boxNo, const uint16_t new_amount) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
+
+	JsonDocument box_json_doc = get_box_info_from_sd(boxNo);
+	if(!AV_Functions::validate_box_Json(box_json_doc)) return false;
+
+	if(box_json_doc["b"].as<uint8_t>() == boxNo ) {
+		box_json_doc["a"] = new_amount;
+	}else return false;
+
+	save_log_sent_to_serv(false);
+	return write_box_info_to_SD(box_json_doc);
+}
+bool memmory_log_sent_srv_stat_on_mem_fail=true;
+bool Memmory::load_log_sent_to_serv_status() {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) {
+		return memmory_log_sent_srv_stat_on_mem_fail;
+	}
+	String status=readLine(log_send_to_server_file,0);
+	status.trim();
+	Serial.print("GET_DLS read_line: ");
+	Serial.println(status);
+	if(status.equals("true"))return true;
+	return false;
+}
+bool Memmory::save_log_sent_to_serv(bool status) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) {
+		memmory_log_sent_srv_stat_on_mem_fail=status;
+		return false;
+	}
+	if(!SD.exists(log_send_to_server_file)) {
+		return writeFile(log_send_to_server_file, status?"true":"false", FILE_WRITE);
+	}
+	String status_existing=readLine(log_send_to_server_file,0);
+	status_existing.trim();
+	if(status_existing.equals(status?"true":"false"))return true;
+	return writeFile(log_send_to_server_file, status?"true":"false", FILE_WRITE);
+}
+
+
+
+JsonDocument Memmory::get_all_boxes_info_from_sd() {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return JsonDocument();
+	if(!SD.exists(box_info_directory)){
+		net_resource_get_reminder_B.start_request();
+		return JsonDocument();
+	}
+	JsonDocument doc;
+	const auto main_doc_array= doc.to<JsonArray>();
+	File directory = SD.open(box_info_directory);
+	File file = directory.openNextFile();
+	while(file){
+		JsonDocument box_doc;
+		ReadBufferingStream bufferingStream(file, 64);
+		const DeserializationError error = deserializeMsgPack(box_doc,bufferingStream);
+		if(error){
+			Serial.print("DE:");
+			Serial.println(error.c_str());
+		}else {
+			if(AV_Functions::validate_box_Json(box_doc)) main_doc_array.add(box_doc);
+		}
+		file.close();
+		file = directory.openNextFile();
 	}
 	file.close();
+	return doc;
+}
+JsonDocument Memmory::get_box_info_from_sd(const byte boxNo) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return JsonDocument();
+	JsonDocument box_json_doc;
+	const String file_name = box_info_file+static_cast<String>(boxNo)+".dat";
+	if(!SD.exists(file_name)) return box_json_doc;
+	File file = SD.open(file_name, FILE_READ);
+	if(file) {
+		ReadBufferingStream bufferingStream(file, 64);
+		const DeserializationError error = deserializeMsgPack(box_json_doc,bufferingStream);
+		if(error) {
+			Serial.print("BOX_JSON_ERROR: ");
+			Serial.println(error.c_str());
+		}
+	}
+	file.close();
+	return box_json_doc;
+}
+bool Memmory::check_box_info_exist(const byte boxNo) {
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
+	if(!SD.exists(box_info_directory)) {
+		net_resource_get_reminder_B.start_request();
+		return false;
+	}
+	const String file_name = box_info_file+static_cast<String>(boxNo)+".dat";
+	if(!SD.exists(file_name)) return false;
+	return true;
+}
+
+
+bool Memmory::writeFile(const String &path, const char *message, const char *mode){//..............WRITE_FILE_SD
+	if(error_codes.check_if_error_exist(SD_CARD_ERROR)) return false;
+	Output::print("Writing file: "+ path);
+	File file = SD.open(path, mode);
+	if(file) {
+		if(file.print(message)){
+			Output::println("- file written");
+			file.close();
+			return true;
+		}
+		Output::println("- write failed");
+	}else {
+		Output::println("- failed to open file for writing");
+	}
+	file.close();
+	return false;
 }
 
 
